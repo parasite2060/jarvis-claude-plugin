@@ -6,7 +6,8 @@
   "private": true,
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "worker": "node worker/server.js"
   },
   "devDependencies": {
     "vitest": "^3.1.0"
