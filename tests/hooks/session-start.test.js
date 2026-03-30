@@ -76,17 +76,24 @@ describe('session-start hook', () => {
     });
   });
 
-  describe('when Jarvis server returns context', () => {
+  describe('when Jarvis server returns context (nested format)', () => {
     let mockServer;
     let serverPort;
-    const MOCK_CONTEXT = 'You are working on Project Jarvis. Key facts: TypeScript strict mode.';
+    const MOCK_CONTEXT = '## SOUL\n\nBe helpful.\n\n## IDENTITY\n\nSoftware engineer.';
 
     beforeAll(async () => {
       await new Promise((resolve) => {
         mockServer = createServer((req, res) => {
           if (req.url === '/memory/context' && req.method === 'GET') {
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ data: MOCK_CONTEXT, status: 'ok' }));
+            res.end(JSON.stringify({
+              data: {
+                context: MOCK_CONTEXT,
+                cached: true,
+                assembledAt: '2026-03-30T10:00:00Z',
+              },
+              status: 'ok',
+            }));
           } else {
             res.writeHead(404);
             res.end();
@@ -116,6 +123,48 @@ describe('session-start hook', () => {
       });
       const output = JSON.parse(stdout);
       expect(output.hookSpecificOutput.additionalContext).toBe(MOCK_CONTEXT);
+    });
+  });
+
+  describe('when Jarvis server returns error status', () => {
+    let mockServer;
+    let serverPort;
+
+    beforeAll(async () => {
+      await new Promise((resolve) => {
+        mockServer = createServer((req, res) => {
+          res.writeHead(500);
+          res.end('Internal Server Error');
+        });
+        mockServer.listen(0, '127.0.0.1', () => {
+          serverPort = mockServer.address().port;
+          resolve();
+        });
+      });
+    });
+
+    afterAll(() => {
+      mockServer.close();
+    });
+
+    it('outputs empty additionalContext on server error', async () => {
+      const { stdout, exitCode } = await runHook(MOCK_INPUT, {
+        CLAUDE_PLUGIN_OPTION_serverUrl: `http://127.0.0.1:${serverPort}`,
+      });
+      expect(exitCode).toBe(0);
+      const output = JSON.parse(stdout);
+      expect(output.hookSpecificOutput.additionalContext).toBe('');
+    });
+  });
+
+  describe('timing', () => {
+    it('completes within 10s timeout', async () => {
+      const start = Date.now();
+      await runHook(MOCK_INPUT, {
+        CLAUDE_PLUGIN_OPTION_serverUrl: 'http://localhost:19999',
+      });
+      const elapsed = Date.now() - start;
+      expect(elapsed).toBeLessThan(10_000);
     });
   });
 });

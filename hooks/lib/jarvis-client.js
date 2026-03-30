@@ -58,7 +58,10 @@ export async function getContext() {
   const data = await get('/memory/context');
   if (data == null) return null;
   if (typeof data === 'object' && data !== null && 'data' in data) {
-    return String(data.data);
+    const inner = data.data;
+    if (typeof inner === 'object' && inner !== null && 'context' in inner) {
+      return String(inner.context);
+    }
   }
-  return String(data);
+  return null;
 }
