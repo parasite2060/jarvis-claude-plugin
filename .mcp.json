@@ -1,0 +1,10 @@
+{
+  "jarvis-memory": {
+    "command": "node",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/index.js"],
+    "env": {
+      "JARVIS_SERVER_URL": "${user_config.serverUrl}",
+      "JARVIS_API_KEY": "${user_config.apiKey}"
+    }
+  }
+}
