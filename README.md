@@ -35,14 +35,9 @@ Claude Code Session
 ### Manual
 
 ```bash
-# Clone the plugin
 git clone https://github.com/parasite2060/jarvis-claude-plugin.git
-
-# Load in Claude Code — no build step needed
 claude code --plugin-dir ./jarvis-claude-plugin
 ```
-
-The MCP server (`@parasite2060/jarvis-mcp-server`) is published to GitHub Packages and auto-installed via `npx` on first start. No manual build required.
 
 On first load, Claude Code will prompt for `serverUrl` and `apiKey` configuration.
 
