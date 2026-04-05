@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js\" --server-url \"${user_config.serverUrl}\" --api-key \"${user_config.apiKey}\" --cache-dir \"${user_config.cacheDir}\" --worker-port \"${user_config.workerPort}\" --extra-headers \"${user_config.extraHeaders}\"",
             "timeout": 10
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-end.js\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-end.js\" --server-url \"${user_config.serverUrl}\" --api-key \"${user_config.apiKey}\" --extra-headers \"${user_config.extraHeaders}\"",
             "timeout": 30
           }
         ]
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.js\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.js\" --server-url \"${user_config.serverUrl}\" --api-key \"${user_config.apiKey}\" --extra-headers \"${user_config.extraHeaders}\"",
             "timeout": 30
           }
         ]
