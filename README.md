@@ -20,6 +20,12 @@ Claude Code Session
     └── Stop hook ──► POST /conversations ──► Capture full transcript for dreaming
 ```
 
+## Prerequisites
+
+- [Claude Code](https://claude.ai/claude-code) installed
+- [Node.js 20+](https://nodejs.org/) — required for hooks and MCP server
+- Jarvis server running and accessible
+
 ## Installation
 
 ### From Marketplace (recommended)
