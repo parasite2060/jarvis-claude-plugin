@@ -1,6 +1,6 @@
 {
   "name": "@parasite2060/jarvis-mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Jarvis MCP server providing memory_search and memory_add tools for Claude Code",
   "type": "module",
   "main": "dist/index.js",
