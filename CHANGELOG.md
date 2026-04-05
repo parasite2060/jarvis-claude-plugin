@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.2.0...jarvis-plugin-v0.2.1) (2026-04-05)
+
+
+### Bug Fixes
+
+* remove redundant npm version — release-please already bumps package.json ([9768ae4](https://github.com/parasite2060/jarvis-claude-plugin/commit/9768ae422501caf531b6d5a4591970c2359ce2fb))
+
 ## [0.2.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.1.0...jarvis-plugin-v0.2.0) (2026-04-05)
 
 
