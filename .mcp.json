@@ -1,7 +1,7 @@
 {
   "jarvis-memory": {
-    "command": "node",
-    "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/index.js"],
+    "command": "npx",
+    "args": ["@parasite2060/jarvis-mcp-server"],
     "env": {
       "JARVIS_SERVER_URL": "${user_config.serverUrl}",
       "JARVIS_API_KEY": "${user_config.apiKey}"

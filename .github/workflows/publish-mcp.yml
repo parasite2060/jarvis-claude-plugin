@@ -1,0 +1,39 @@
+name: Publish MCP Server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mcp-server/**"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build & Publish to GitHub Packages
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@parasite2060"
+
+      - name: Install dependencies
+        run: cd mcp-server && npm ci
+
+      - name: Build
+        run: cd mcp-server && npm run build
+
+      - name: Test
+        run: cd mcp-server && npm test
+
+      - name: Publish
+        run: cd mcp-server && npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

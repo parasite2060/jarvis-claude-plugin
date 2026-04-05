@@ -1,14 +1,28 @@
 {
-  "name": "jarvis-mcp-server",
+  "name": "@parasite2060/jarvis-mcp-server",
   "version": "0.1.0",
-  "description": "Jarvis MCP server providing memory_search and memory_add tools",
+  "description": "Jarvis MCP server providing memory_search and memory_add tools for Claude Code",
   "type": "module",
-  "private": true,
   "main": "dist/index.js",
+  "bin": {
+    "jarvis-mcp-server": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "tsc",
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/parasite2060/jarvis-claude-plugin.git",
+    "directory": "mcp-server"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",
