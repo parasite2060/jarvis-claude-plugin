@@ -26,9 +26,11 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
-      release_created: ${{ steps.release.outputs['mcp-server--release_created'] }}
-      tag_name: ${{ steps.release.outputs['mcp-server--tag_name'] }}
-      version: ${{ steps.release.outputs['mcp-server--version'] }}
+      plugin_release_created: ${{ steps.release.outputs['.--release_created'] }}
+      plugin_version: ${{ steps.release.outputs['.--version'] }}
+      mcp_release_created: ${{ steps.release.outputs['mcp-server--release_created'] }}
+      mcp_tag_name: ${{ steps.release.outputs['mcp-server--tag_name'] }}
+      mcp_version: ${{ steps.release.outputs['mcp-server--version'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -66,7 +68,7 @@ jobs:
     needs: [release-please, manual-release]
     if: |
       always() && (
-        needs.release-please.outputs.release_created == 'true' ||
+        needs.release-please.outputs.mcp_release_created == 'true' ||
         (needs.manual-release.result == 'success' && needs.manual-release.outputs.version != '')
       )
     runs-on: ubuntu-latest
@@ -76,7 +78,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ needs.release-please.outputs.tag_name || needs.manual-release.outputs.tag_name }}
+          ref: ${{ needs.release-please.outputs.mcp_tag_name || needs.manual-release.outputs.tag_name }}
 
       - uses: actions/setup-node@v4
         with:
@@ -90,7 +92,7 @@ jobs:
       - name: Resolve version and npm tag
         id: resolve
         run: |
-          VERSION="${{ needs.release-please.outputs.version || needs.manual-release.outputs.version }}"
+          VERSION="${{ needs.release-please.outputs.mcp_version || needs.manual-release.outputs.version }}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           if [[ "$VERSION" == *-* ]]; then
             echo "npm_tag=next" >> "$GITHUB_OUTPUT"

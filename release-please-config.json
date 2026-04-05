@@ -1,13 +1,24 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "packages": {
+    ".": {
+      "release-type": "node",
+      "component": "jarvis-plugin",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "extra-files": [
+        {
+          "type": "json",
+          "path": ".claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
     "mcp-server": {
       "release-type": "node",
       "component": "jarvis-mcp-server",
       "changelog-path": "CHANGELOG.md",
-      "bump-minor-pre-major": true,
-      "draft": false,
-      "prerelease": false
+      "bump-minor-pre-major": true
     }
   }
 }
