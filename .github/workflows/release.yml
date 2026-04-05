@@ -115,9 +115,6 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - if: steps.check.outputs.exists == 'false'
-        run: |
-          cd mcp-server
-          npm version "${{ steps.resolve.outputs.version }}" --no-git-tag-version
-          npm publish --tag "${{ steps.resolve.outputs.npm_tag }}"
+        run: cd mcp-server && npm publish --tag "${{ steps.resolve.outputs.npm_tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
