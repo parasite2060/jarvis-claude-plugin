@@ -39,7 +39,7 @@ git clone https://github.com/parasite2060/jarvis-claude-plugin.git
 claude code --plugin-dir ./jarvis-claude-plugin
 ```
 
-On first load, Claude Code will prompt for `serverUrl` and `apiKey` configuration.
+After installation, go to `/plugin` > **Installed** > **jarvis-plugin** to configure `Server URL` and `API Key` before use.
 
 ## Features
 
