@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "jarvis-claude-plugin",
-      "source": ".",
+      "source": "./",
       "description": "Persistent AI memory for Claude Code — context injection, transcript capture, semantic search, and dreaming engine"
     }
   ]
