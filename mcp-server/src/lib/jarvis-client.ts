@@ -6,9 +6,34 @@ interface JarvisErrorBody {
   error?: { code?: string; message?: string };
 }
 
-const JARVIS_SERVER_URL = process.env.JARVIS_SERVER_URL ?? 'http://localhost:8000';
-const JARVIS_API_KEY = process.env.JARVIS_API_KEY ?? '';
-const JARVIS_EXTRA_HEADERS_RAW = process.env.JARVIS_EXTRA_HEADERS ?? '';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+
+function readCredentials(): Record<string, string> {
+  try {
+    const creds = JSON.parse(readFileSync(join(homedir(), '.claude', '.credentials.json'), 'utf8'));
+    return creds?.pluginSecrets?.['jarvis-plugin@jarvis'] ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function readSettings(): Record<string, string> {
+  try {
+    const settings = JSON.parse(readFileSync(join(homedir(), '.claude', 'settings.json'), 'utf8'));
+    return settings?.pluginConfigs?.['jarvis-plugin@jarvis']?.options ?? {};
+  } catch {
+    return {};
+  }
+}
+
+const secrets = readCredentials();
+const options = readSettings();
+
+const JARVIS_SERVER_URL = process.env.JARVIS_SERVER_URL || options.serverUrl || 'http://localhost:8000';
+const JARVIS_API_KEY = process.env.JARVIS_API_KEY || secrets.apiKey || '';
+const JARVIS_EXTRA_HEADERS_RAW = process.env.JARVIS_EXTRA_HEADERS || secrets.extraHeaders || '';
 
 function parseExtraHeaders(): Record<string, string> {
   if (!JARVIS_EXTRA_HEADERS_RAW) return {};
