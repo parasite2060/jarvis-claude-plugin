@@ -1,11 +1,11 @@
 {
-  "name": "jarvis-plugins",
+  "name": "jarvis",
   "owner": {
     "name": "parasite2060"
   },
   "plugins": [
     {
-      "name": "jarvis-claude-plugin",
+      "name": "jarvis-plugin",
       "source": "./",
       "description": "Persistent AI memory for Claude Code — context injection, transcript capture, semantic search, and dreaming engine"
     }

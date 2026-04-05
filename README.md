@@ -29,7 +29,7 @@ Claude Code Session
 /plugin marketplace add parasite2060/jarvis-claude-plugin
 
 # Install the plugin
-/plugin install jarvis-claude-plugin@jarvis-plugins
+/plugin install jarvis-plugin@jarvis
 ```
 
 ### Manual
