@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Pre-release identifier (e.g., alpha.1, beta.2, rc.1). Leave empty for dry run."
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -14,6 +20,7 @@ concurrency:
 
 jobs:
   release-please:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs['mcp-server--release_created'] }}
@@ -23,15 +30,50 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
 
+  manual-release:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.prerelease != ''
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag_name: ${{ steps.version.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Compute pre-release version
+        id: version
+        run: |
+          BASE_VERSION=$(node -p "require('./mcp-server/package.json').version")
+          PRERELEASE="${{ github.event.inputs.prerelease }}"
+          VERSION="${BASE_VERSION}-${PRERELEASE}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag_name=jarvis-mcp-server-v${VERSION}" >> "$GITHUB_OUTPUT"
+      - name: Create pre-release tag and GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag_name }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" --title "jarvis-mcp-server v${VERSION}" --notes "Pre-release v${VERSION}" --prerelease
+
   publish-mcp:
-    needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    needs: [release-please, manual-release]
+    if: |
+      always() && (
+        needs.release-please.outputs.release_created == 'true' ||
+        (needs.manual-release.result == 'success' && needs.manual-release.outputs.version != '')
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name || needs.manual-release.outputs.tag_name }}
 
       - uses: actions/setup-node@v4
         with:
@@ -42,12 +84,23 @@ jobs:
       - run: cd mcp-server && npm run build
       - run: cd mcp-server && npm test
 
+      - name: Resolve version and npm tag
+        id: resolve
+        run: |
+          VERSION="${{ needs.release-please.outputs.version || needs.manual-release.outputs.version }}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          if [[ "$VERSION" == *-* ]]; then
+            echo "npm_tag=next" >> "$GITHUB_OUTPUT"
+          else
+            echo "npm_tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check if version exists
         id: check
         run: |
           cd mcp-server
           PACKAGE_NAME=$(node -p "require('./package.json').name")
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION="${{ steps.resolve.outputs.version }}"
           if npm view "${PACKAGE_NAME}@${VERSION}" version 2>/dev/null; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
@@ -57,6 +110,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - if: steps.check.outputs.exists == 'false'
-        run: cd mcp-server && npm publish
+        run: |
+          cd mcp-server
+          npm version "${{ steps.resolve.outputs.version }}" --no-git-tag-version
+          npm publish --tag "${{ steps.resolve.outputs.npm_tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
