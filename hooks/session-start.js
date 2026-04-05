@@ -4,7 +4,14 @@
  * ALWAYS exits 0. Never blocks Claude Code.
  */
 
-import { getContext } from './lib/jarvis-client.js';
+import { getContext, config } from './lib/jarvis-client.js';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+
+function resolveCacheDir() {
+  const dir = config.cacheDir || '~/.jarvis-cache/ai-memory';
+  return dir.startsWith('~') ? join(homedir(), dir.slice(1)) : dir;
+}
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -20,11 +27,13 @@ const raw = await readStdin();
 try {
   JSON.parse(raw);
   const context = await getContext();
+  const cacheDir = resolveCacheDir();
+  const cacheDirNote = `\n\nJARVIS_CACHE_DIR: ${cacheDir}\nLocal vault files are synced to this path. Use Read/Grep tools to access them directly.`;
 
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'SessionStart',
-      additionalContext: context ?? '',
+      additionalContext: (context ?? '') + cacheDirNote,
     },
   }));
 } catch (err) {
