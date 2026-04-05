@@ -8,11 +8,25 @@ interface JarvisErrorBody {
 
 const JARVIS_SERVER_URL = process.env.JARVIS_SERVER_URL ?? 'http://localhost:8000';
 const JARVIS_API_KEY = process.env.JARVIS_API_KEY ?? '';
+const JARVIS_EXTRA_HEADERS_RAW = process.env.JARVIS_EXTRA_HEADERS ?? '';
+
+function parseExtraHeaders(): Record<string, string> {
+  if (!JARVIS_EXTRA_HEADERS_RAW) return {};
+  try {
+    const parsed = JSON.parse(JARVIS_EXTRA_HEADERS_RAW);
+    return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, string> : {};
+  } catch {
+    return {};
+  }
+}
+
+const EXTRA_HEADERS = parseExtraHeaders();
 
 function buildHeaders(): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${JARVIS_API_KEY}`,
+    ...EXTRA_HEADERS,
   };
 }
 

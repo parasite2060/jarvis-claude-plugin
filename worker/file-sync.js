@@ -26,10 +26,11 @@ function encodePath(filePath) {
   return filePath.split('/').map(encodeURIComponent).join('/');
 }
 
-export async function syncFiles(serverUrl, apiKey, cacheDir) {
+export async function syncFiles(serverUrl, apiKey, cacheDir, extraHeaders = {}) {
+  const headers = { Authorization: `Bearer ${apiKey}`, ...extraHeaders };
   try {
     const manifestRes = await fetch(`${serverUrl}/memory/files/manifest`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
+      headers,
     });
 
     if (!manifestRes.ok) {
@@ -75,7 +76,7 @@ export async function syncFiles(serverUrl, apiKey, cacheDir) {
     for (const file of toDownload) {
       try {
         const fileRes = await fetch(`${serverUrl}/memory/files/${encodePath(file.path)}`, {
-          headers: { Authorization: `Bearer ${apiKey}` },
+          headers,
         });
         if (!fileRes.ok) {
           console.error(`jarvis.file-sync.download-failed: ${file.path} status=${fileRes.status}`);

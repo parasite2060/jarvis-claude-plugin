@@ -15,6 +15,16 @@ const CACHE_DIR = resolveHome(process.env.CLAUDE_PLUGIN_OPTION_cacheDir || '~/.j
 const WORKER_PORT = Number(process.env.CLAUDE_PLUGIN_OPTION_workerPort) || 37777;
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
+function parseExtraHeaders() {
+  const raw = process.env.CLAUDE_PLUGIN_OPTION_extraHeaders || '';
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed === 'object' && parsed !== null ? parsed : {};
+  } catch { return {}; }
+}
+const EXTRA_HEADERS = parseExtraHeaders();
+
 if (!API_KEY) {
   console.error('jarvis.worker.startup-failed: CLAUDE_PLUGIN_OPTION_apiKey is required');
   process.exit(1);
@@ -33,7 +43,7 @@ async function runSync() {
   if (syncInProgress) return;
   syncInProgress = true;
   try {
-    const result = await syncFiles(SERVER_URL, API_KEY, CACHE_DIR);
+    const result = await syncFiles(SERVER_URL, API_KEY, CACHE_DIR, EXTRA_HEADERS);
     if (result.synced) {
       lastSync = new Date().toISOString();
       lastManifestHash = result.manifestHash;

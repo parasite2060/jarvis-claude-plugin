@@ -32,6 +32,13 @@
       "type": "number",
       "default": 37777,
       "description": "Port for local background file sync worker"
+    },
+    "extraHeaders": {
+      "title": "Extra Headers",
+      "type": "string",
+      "sensitive": true,
+      "default": "",
+      "description": "Additional HTTP headers as JSON object, e.g. {\"CF-Access-Client-Id\":\"...\",\"CF-Access-Client-Secret\":\"...\"}"
     }
   }
 }

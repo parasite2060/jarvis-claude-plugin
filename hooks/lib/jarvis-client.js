@@ -6,11 +6,25 @@
 
 const JARVIS_SERVER_URL = process.env.CLAUDE_PLUGIN_OPTION_serverUrl ?? 'http://localhost:8000';
 const JARVIS_API_KEY = process.env.CLAUDE_PLUGIN_OPTION_apiKey ?? '';
+const JARVIS_EXTRA_HEADERS_RAW = process.env.CLAUDE_PLUGIN_OPTION_extraHeaders ?? '';
+
+function parseExtraHeaders() {
+  if (!JARVIS_EXTRA_HEADERS_RAW) return {};
+  try {
+    const parsed = JSON.parse(JARVIS_EXTRA_HEADERS_RAW);
+    return typeof parsed === 'object' && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+const EXTRA_HEADERS = parseExtraHeaders();
 
 function buildHeaders() {
   return {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${JARVIS_API_KEY}`,
+    ...EXTRA_HEADERS,
   };
 }
 

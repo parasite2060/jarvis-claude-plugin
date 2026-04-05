@@ -4,7 +4,8 @@
     "args": ["--registry=https://npm.pkg.github.com", "@parasite2060/jarvis-mcp-server"],
     "env": {
       "JARVIS_SERVER_URL": "${user_config.serverUrl}",
-      "JARVIS_API_KEY": "${user_config.apiKey}"
+      "JARVIS_API_KEY": "${user_config.apiKey}",
+      "JARVIS_EXTRA_HEADERS": "${user_config.extraHeaders}"
     }
   }
 }
