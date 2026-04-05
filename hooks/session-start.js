@@ -28,12 +28,12 @@ try {
   JSON.parse(raw);
   const context = await getContext();
   const cacheDir = resolveCacheDir();
-  const cacheDirNote = `\n\nJARVIS_CACHE_DIR: ${cacheDir}\nLocal vault files are synced to this path. Use Read/Grep tools to access them directly.`;
+  const header = `JARVIS_CACHE_DIR: ${cacheDir}\n\n`;
 
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'SessionStart',
-      additionalContext: (context ?? '') + cacheDirNote,
+      additionalContext: header + (context ?? ''),
     },
   }));
 } catch (err) {
