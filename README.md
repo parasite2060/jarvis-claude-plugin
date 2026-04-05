@@ -20,6 +20,20 @@ Claude Code Session
     └── Stop hook ──► POST /conversations ──► Capture full transcript for dreaming
 ```
 
+## Installation
+
+```bash
+# Clone the plugin
+git clone https://github.com/parasite2060/jarvis-claude-plugin.git
+
+# Load in Claude Code — no build step needed
+claude code --plugin-dir ./jarvis-claude-plugin
+```
+
+The MCP server (`@parasite2060/jarvis-mcp-server`) is published to GitHub Packages and auto-installed via `npx` on first start. No manual `npm install` or `npm run build` required.
+
+On first load, Claude Code will prompt for `serverUrl` and `apiKey` configuration.
+
 ## Features
 
 ### Hooks
@@ -39,6 +53,8 @@ All hooks exit 0 on failure (graceful degradation — Claude works fine without 
 | `memory_search` | Semantic search across all past memories. Calls Jarvis Server, which proxies to MemU (pgvector). Returns ranked results with source context. |
 | `memory_add` | Store a new memory during a session. Claude proactively calls this when it observes decisions, preferences, corrections, or important facts. |
 
+The MCP server is distributed as [`@parasite2060/jarvis-mcp-server`](https://github.com/parasite2060/jarvis-claude-plugin/packages) on GitHub Packages. Versioned via [release-please](https://github.com/googleapis/release-please) with automated publishing on release.
+
 ### Commands
 
 | Command | Description |
@@ -55,11 +71,24 @@ A background Node.js process that keeps vault files synced locally:
 - Auto-started by the SessionStart hook
 - Persists between sessions via PID file
 
+## Configuration
+
+Plugin configuration is managed through Claude Code's `userConfig` system (stored in keychain for sensitive values):
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `serverUrl` | string | `http://localhost:8000` | Jarvis Server URL |
+| `apiKey` | string (sensitive) | — | API key for Jarvis Server (stored in keychain) |
+| `cacheDir` | string | `~/.jarvis-cache/ai-memory` | Local vault file cache directory |
+| `workerPort` | number | `37777` | Local file sync worker port |
+
 ## Plugin Structure
 
 ```
 .claude-plugin/
 └── plugin.json              # Plugin manifest with userConfig schema
+
+.mcp.json                    # MCP server registration (npx auto-install)
 
 hooks/
 ├── hooks.json               # Hook definitions (SessionStart, Stop, PreCompact)
@@ -71,7 +100,7 @@ hooks/
     ├── transcript.js         # JSONL parsing + sensitive data filtering
     └── worker-manager.js     # Local worker lifecycle management
 
-mcp-server/
+mcp-server/                  # Published as @parasite2060/jarvis-mcp-server
 ├── src/
 │   ├── index.ts             # MCP server entry (stdio transport)
 │   ├── tools/
@@ -87,41 +116,12 @@ worker/
 └── server.js                # Background file sync worker
 
 commands/
-├── dream/
-│   └── COMMAND.md           # /dream command definition
-└── recall/
-    └── COMMAND.md           # /recall command definition
+├── dream/COMMAND.md         # /dream command definition
+└── recall/COMMAND.md        # /recall command definition
 
 skills/
-└── memory-usage/
-    └── SKILL.md             # Instructs Claude when/how to use memory tools
+└── memory-usage/SKILL.md    # Instructs Claude when/how to use memory tools
 ```
-
-## Configuration
-
-Plugin configuration is managed through Claude Code's `userConfig` system (stored in keychain for sensitive values):
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `serverUrl` | string | `http://localhost:8000` | Jarvis Server URL |
-| `apiKey` | string (sensitive) | — | API key for Jarvis Server (stored in keychain) |
-| `cacheDir` | string | `~/.jarvis-cache/ai-memory` | Local vault file cache directory |
-| `workerPort` | number | `37777` | Local file sync worker port |
-
-## Installation
-
-```bash
-# Clone the plugin
-git clone https://github.com/parasite2060/jarvis-claude-plugin.git
-
-# Install MCP server dependencies
-cd mcp-server && npm install && npm run build && cd ..
-
-# Load in Claude Code
-claude code --plugin-dir ./jarvis-claude-plugin
-```
-
-On first load, Claude Code will prompt for `serverUrl` and `apiKey` configuration.
 
 ## Tech Stack
 
@@ -132,6 +132,21 @@ On first load, Claude Code will prompt for `serverUrl` and `apiKey` configuratio
 | Worker | Node.js (detached background process) |
 | Validation | Zod |
 | Testing | Vitest |
+| CI/CD | GitHub Actions (CI on PR, release-please for versioning) |
+| Package Registry | GitHub Packages (npm) |
+
+## Releases
+
+Managed by [release-please](https://github.com/googleapis/release-please):
+
+- **Stable releases** — Push conventional commits to `main` → release-please creates a Release PR → merge → MCP package published with `latest` tag
+- **Pre-releases** — Go to Actions → Release → Run workflow → Enter identifier (e.g., `alpha.1`) → MCP package published with `next` tag
+
+Install a specific version:
+```bash
+npx --registry=https://npm.pkg.github.com @parasite2060/jarvis-mcp-server@0.2.0
+npx --registry=https://npm.pkg.github.com @parasite2060/jarvis-mcp-server@next  # latest pre-release
+```
 
 ## Security
 
