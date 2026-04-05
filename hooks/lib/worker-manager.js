@@ -9,14 +9,15 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from '
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-const WORKER_PORT = Number(process.env.CLAUDE_PLUGIN_OPTION_workerPort) || 37777;
-const CACHE_DIR = resolveHome(process.env.CLAUDE_PLUGIN_OPTION_cacheDir || '~/.jarvis-cache/ai-memory');
+import { config } from './jarvis-client.js';
 
 function resolveHome(p) {
   if (p.startsWith('~')) return join(homedir(), p.slice(1));
   return p;
 }
+
+const WORKER_PORT = config.workerPort;
+const CACHE_DIR = resolveHome(config.cacheDir);
 
 function getPidFilePath() {
   return join(CACHE_DIR, '.worker.pid');
@@ -56,10 +57,18 @@ export async function ensureWorkerRunning() {
     const __dirname = dirname(fileURLToPath(import.meta.url));
     const workerScript = join(__dirname, '..', '..', 'worker', 'server.js');
 
+    // Pass config to worker via env vars (worker reads CLAUDE_PLUGIN_OPTION_*)
     const child = spawn('node', [workerScript], {
       detached: true,
       stdio: 'ignore',
-      env: { ...process.env },
+      env: {
+        ...process.env,
+        CLAUDE_PLUGIN_OPTION_serverUrl: config.serverUrl,
+        CLAUDE_PLUGIN_OPTION_apiKey: config.apiKey,
+        CLAUDE_PLUGIN_OPTION_cacheDir: config.cacheDir,
+        CLAUDE_PLUGIN_OPTION_workerPort: String(config.workerPort),
+        CLAUDE_PLUGIN_OPTION_extraHeaders: config.extraHeaders,
+      },
     });
     child.unref();
 
