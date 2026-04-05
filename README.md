@@ -25,10 +25,6 @@ Claude Code Session
 - [Claude Code](https://claude.ai/claude-code) installed
 - [Node.js 20+](https://nodejs.org/) — required for hooks and MCP server
 - Jarvis server running and accessible
-- GitHub Packages registry configured for `@parasite2060` scope:
-  ```
-  echo '@parasite2060:registry=https://npm.pkg.github.com' >> ~/.npmrc
-  ```
 
 ## Installation
 

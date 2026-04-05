@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -83,13 +83,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          registry-url: https://npm.pkg.github.com
+          registry-url: https://registry.npmjs.org
 
       - run: cd mcp-server && npm ci
       - run: cd mcp-server && npm run build
       - run: cd mcp-server && npm test
 
-      - name: Resolve version and npm tag
+      - name: Resolve npm tag
         id: resolve
         run: |
           VERSION="${{ needs.release-please.outputs.mcp_version || needs.manual-release.outputs.version }}"
@@ -111,10 +111,8 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - if: steps.check.outputs.exists == 'false'
-        run: cd mcp-server && npm publish --tag "${{ steps.resolve.outputs.npm_tag }}"
+        run: cd mcp-server && npm publish --provenance --access public --tag "${{ steps.resolve.outputs.npm_tag }}"
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
