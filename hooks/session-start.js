@@ -23,6 +23,7 @@ try {
 
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
+      hookEventName: 'SessionStart',
       additionalContext: context ?? '',
     },
   }));
@@ -30,6 +31,6 @@ try {
   const message = err instanceof Error ? err.message : String(err);
   process.stderr.write(`jarvis.session-start.error: ${message}\n`);
   process.stdout.write(JSON.stringify({
-    hookSpecificOutput: { additionalContext: '' },
+    hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: '' },
   }));
 }

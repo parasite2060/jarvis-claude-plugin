@@ -1,13 +1,12 @@
 {
-  "description": "Jarvis memory system hooks - context injection, transcript capture",
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "*",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js\" --server-url \"${user_config.serverUrl}\" --api-key \"${user_config.apiKey}\" --cache-dir \"${user_config.cacheDir}\" --worker-port \"${user_config.workerPort}\" --extra-headers \"${user_config.extraHeaders}\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" session-start",
             "timeout": 10
           }
         ]
@@ -15,11 +14,11 @@
     ],
     "Stop": [
       {
-        "matcher": "*",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-end.js\" --server-url \"${user_config.serverUrl}\" --api-key \"${user_config.apiKey}\" --extra-headers \"${user_config.extraHeaders}\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" session-end",
             "timeout": 30
           }
         ]
@@ -27,11 +26,11 @@
     ],
     "PreCompact": [
       {
-        "matcher": "*",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.js\" --server-url \"${user_config.serverUrl}\" --api-key \"${user_config.apiKey}\" --extra-headers \"${user_config.extraHeaders}\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" pre-compact",
             "timeout": 30
           }
         ]
