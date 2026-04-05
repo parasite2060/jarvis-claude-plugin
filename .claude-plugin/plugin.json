@@ -10,21 +10,25 @@
   "license": "MIT",
   "userConfig": {
     "serverUrl": {
+      "title": "Server URL",
       "type": "string",
       "default": "http://localhost:8000",
       "description": "Jarvis server API base URL"
     },
     "apiKey": {
+      "title": "API Key",
       "type": "string",
       "sensitive": true,
       "description": "Bearer token for Jarvis server authentication"
     },
     "cacheDir": {
+      "title": "Cache Directory",
       "type": "string",
       "default": "~/.jarvis-cache/ai-memory",
       "description": "Local file cache directory for vault files"
     },
     "workerPort": {
+      "title": "Worker Port",
       "type": "number",
       "default": 37777,
       "description": "Port for local background file sync worker"
