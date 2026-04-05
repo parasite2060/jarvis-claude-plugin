@@ -38,4 +38,4 @@ Report: **"No matching memories found."** Then suggest:
 
 - Use semantic queries, not keyword searches. "What framework did I choose for the API?" works better than "framework API".
 - The `memory_search` tool searches across all vault files and stored memories, not just what is in the current session context.
-- For known specific files, it may be faster to Read them directly from `JARVIS_CACHE_DIR` (default: `~/.jarvis-cache/ai-memory/`).
+- For known specific files, it may be faster to Read them directly from `JARVIS_CACHE_DIR` (injected at session start).
