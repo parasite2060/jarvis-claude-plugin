@@ -87,14 +87,12 @@ Call `memory_search` proactively when:
 
 ### JARVIS_CACHE_DIR
 
-The local memory vault cache is at `JARVIS_CACHE_DIR` (read from `CLAUDE_PLUGIN_OPTION_cacheDir`, default: `~/.jarvis-cache/ai-memory/`).
-
-You can Read and Grep files in this directory directly — this is faster than `memory_search` for known files.
+The local memory vault cache path is injected into your context at session start as `JARVIS_CACHE_DIR`. Use that path for Read and Grep — it's faster than `memory_search` for known files.
 
 ### Vault Layout
 
 ```
-~/.jarvis-cache/ai-memory/
+<JARVIS_CACHE_DIR>/
 ├── SOUL.md              # Principles, values, decision philosophy
 ├── IDENTITY.md          # Role, tech stack, working style, current projects
 ├── MEMORY.md            # Index of key facts, decisions, patterns (<200 lines)
