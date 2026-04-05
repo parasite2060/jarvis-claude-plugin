@@ -1,7 +1,7 @@
 {
   "jarvis-memory": {
     "command": "npx",
-    "args": ["--registry=https://npm.pkg.github.com", "@parasite2060/jarvis-mcp-server"],
+    "args": ["@parasite2060/jarvis-mcp-server"],
     "env": {
       "JARVIS_SERVER_URL": "${user_config.serverUrl}",
       "JARVIS_API_KEY": "${user_config.apiKey}",
