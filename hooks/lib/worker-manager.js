@@ -57,17 +57,17 @@ export async function ensureWorkerRunning() {
     const __dirname = dirname(fileURLToPath(import.meta.url));
     const workerScript = join(__dirname, '..', '..', 'worker', 'server.js');
 
-    // Pass config to worker via env vars (worker reads CLAUDE_PLUGIN_OPTION_*)
+    // Pass config to worker via uppercase env vars (matching Claude Code convention)
     const child = spawn('node', [workerScript], {
       detached: true,
       stdio: 'ignore',
       env: {
         ...process.env,
-        CLAUDE_PLUGIN_OPTION_serverUrl: config.serverUrl,
-        CLAUDE_PLUGIN_OPTION_apiKey: config.apiKey,
-        CLAUDE_PLUGIN_OPTION_cacheDir: config.cacheDir,
-        CLAUDE_PLUGIN_OPTION_workerPort: String(config.workerPort),
-        CLAUDE_PLUGIN_OPTION_extraHeaders: config.extraHeaders,
+        CLAUDE_PLUGIN_OPTION_SERVERURL: config.serverUrl,
+        CLAUDE_PLUGIN_OPTION_APIKEY: config.apiKey,
+        CLAUDE_PLUGIN_OPTION_CACHEDIR: config.cacheDir,
+        CLAUDE_PLUGIN_OPTION_WORKERPORT: String(config.workerPort),
+        CLAUDE_PLUGIN_OPTION_EXTRAHEADERS: config.extraHeaders,
       },
     });
     child.unref();
