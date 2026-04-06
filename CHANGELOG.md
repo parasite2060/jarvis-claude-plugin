@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.2.1...jarvis-plugin-v0.3.0) (2026-04-06)
+
+
+### Features
+
+* switch MCP server publishing from GitHub Packages to npmjs.com ([c5a954e](https://github.com/parasite2060/jarvis-claude-plugin/commit/c5a954e5c0a67864b4e2a6c691fb0d8bcc6dc6a5))
+
+
+### Bug Fixes
+
+* add hookEventName to output + bash wrapper for Windows compatibility ([eb648ce](https://github.com/parasite2060/jarvis-claude-plugin/commit/eb648ce2483020f71c27e623ae0a96a8d7d347b5))
+* inject resolved JARVIS_CACHE_DIR path into session context ([02234de](https://github.com/parasite2060/jarvis-claude-plugin/commit/02234ded8a50e8b699a2d1028c761cc40a862ab4))
+* MCP server reads credentials from Claude config files as fallback ([fdbfcb7](https://github.com/parasite2060/jarvis-claude-plugin/commit/fdbfcb78b222fad195c377189c815c0ecbb4589e))
+* pass userConfig to hooks via CLI args instead of env vars ([2cb0073](https://github.com/parasite2060/jarvis-claude-plugin/commit/2cb00737628928803acdbd6c4a5e7a4327ddf36f))
+* put JARVIS_CACHE_DIR at top of context, not bottom ([fc3c489](https://github.com/parasite2060/jarvis-claude-plugin/commit/fc3c48920a1b7fda00c915e0047a161faee06fad))
+* remove hardcoded cache path — use JARVIS_CACHE_DIR from session context ([20611a7](https://github.com/parasite2060/jarvis-claude-plugin/commit/20611a746eb332f85838e3f776b0ab5ec010bdce))
+* remove worker spawn from SessionStart hook to prevent Windows libuv crash ([912b3d6](https://github.com/parasite2060/jarvis-claude-plugin/commit/912b3d677d9c6f400698f92f9db383dae4405f6b))
+* revert to direct node command — issue was missing hookEventName, not the wrapper ([c405bc5](https://github.com/parasite2060/jarvis-claude-plugin/commit/c405bc5d63e52b876fb6f3987c978d06dd03e87d))
+* update version to 0.2.1 in package-lock.json ([d9b9b7c](https://github.com/parasite2060/jarvis-claude-plugin/commit/d9b9b7cfcc25dd6d990cfebeafb346c0a87ce0d7))
+* use env vars for config instead of reading credential files ([2441914](https://github.com/parasite2060/jarvis-claude-plugin/commit/2441914a85d4d07f65ac0b75ee8356718352557a))
+* use env vars for config instead of reading credential files ([e2ac174](https://github.com/parasite2060/jarvis-claude-plugin/commit/e2ac174d5a52eaac7297aef1c4a825d2262d506f))
+* use scoped .npmrc instead of --registry flag for npx ([e88d612](https://github.com/parasite2060/jarvis-claude-plugin/commit/e88d612c5d55d7b372389e13e6cdfa70aa840cc4))
+* use SessionEnd instead of Stop for transcript capture ([e9738b9](https://github.com/parasite2060/jarvis-claude-plugin/commit/e9738b9e7d053e3cebb900931ad68f2120ff220b))
+
 ## [0.2.1](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.2.0...jarvis-plugin-v0.2.1) (2026-04-05)
 
 
