@@ -5,6 +5,7 @@
  */
 
 import { getContext, config } from './lib/jarvis-client.js';
+import { ensureWorkerRunning } from './lib/worker-manager.js';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -29,6 +30,9 @@ try {
   const context = await getContext();
   const cacheDir = resolveCacheDir();
   const header = `JARVIS_CACHE_DIR: ${cacheDir}\n\n`;
+
+  // Start background file sync worker (non-blocking, fire-and-forget)
+  ensureWorkerRunning().catch(() => {});
 
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
