@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.3.0...jarvis-plugin-v0.3.1) (2026-04-06)
+
+
+### Bug Fixes
+
+* call ensureWorkerRunning() in session-start hook ([5121f92](https://github.com/parasite2060/jarvis-claude-plugin/commit/5121f926397288add868421c805d649ca86d387e))
+
 ## [0.3.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.2.1...jarvis-plugin-v0.3.0) (2026-04-06)
 
 
