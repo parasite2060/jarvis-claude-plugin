@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.3.1...jarvis-plugin-v0.4.0) (2026-04-06)
+
+
+### Features
+
+* include vault file tree index in session-start context ([ebf8a76](https://github.com/parasite2060/jarvis-claude-plugin/commit/ebf8a767e1987f67abf32e1cfd5a2213dc3363ec))
+
 ## [0.3.1](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.3.0...jarvis-plugin-v0.3.1) (2026-04-06)
 
 
