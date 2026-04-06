@@ -22,8 +22,8 @@ describe('worker-manager', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    vi.stubEnv('CLAUDE_PLUGIN_OPTION_workerPort', '39999');
-    vi.stubEnv('CLAUDE_PLUGIN_OPTION_cacheDir', TEST_CACHE_DIR);
+    vi.stubEnv('CLAUDE_PLUGIN_OPTION_WORKERPORT', '39999');
+    vi.stubEnv('CLAUDE_PLUGIN_OPTION_CACHEDIR', TEST_CACHE_DIR);
     mockFetch = vi.fn();
     vi.stubGlobal('fetch', mockFetch);
 

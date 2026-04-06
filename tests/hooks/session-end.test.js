@@ -91,7 +91,7 @@ describe('session-end hook', () => {
     it('reads transcript file and sends content to server', async () => {
       const input = makeInput({ transcript_path: transcriptFile });
       const { exitCode } = await runHook(input, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: `http://127.0.0.1:${serverPort}`,
+        CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${serverPort}`,
       });
 
       expect(exitCode).toBe(0);
@@ -107,7 +107,7 @@ describe('session-end hook', () => {
 
       const input = makeInput({ transcript_path: sensitiveFile });
       const { exitCode } = await runHook(input, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: `http://127.0.0.1:${serverPort}`,
+        CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${serverPort}`,
       });
 
       expect(exitCode).toBe(0);
@@ -120,7 +120,7 @@ describe('session-end hook', () => {
     it('sends source: "stop" in POST body', async () => {
       const input = makeInput({ transcript_path: transcriptFile });
       await runHook(input, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: `http://127.0.0.1:${serverPort}`,
+        CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${serverPort}`,
       });
 
       expect(receivedBody.source).toBe('stop');
@@ -131,7 +131,7 @@ describe('session-end hook', () => {
     it('exits 0 when transcript_path is missing', async () => {
       const input = makeInput({ transcript_path: undefined });
       const { exitCode, stderr } = await runHook(input, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: 'http://localhost:19999',
+        CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://localhost:19999',
       });
       expect(exitCode).toBe(0);
       expect(stderr).toContain('jarvis.session-end.skip');
@@ -140,7 +140,7 @@ describe('session-end hook', () => {
     it('exits 0 when transcript file does not exist', async () => {
       const input = makeInput({ transcript_path: '/tmp/nonexistent-file-xyz.jsonl' });
       const { exitCode, stderr } = await runHook(input, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: 'http://localhost:19999',
+        CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://localhost:19999',
       });
       expect(exitCode).toBe(0);
       expect(stderr).toContain('jarvis.session-end.skip');
@@ -154,7 +154,7 @@ describe('session-end hook', () => {
 
       const input = makeInput({ transcript_path: tmpFile });
       const { exitCode } = await runHook(input, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: 'http://localhost:19999',
+        CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://localhost:19999',
       });
       expect(exitCode).toBe(0);
 

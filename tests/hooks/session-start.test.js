@@ -45,21 +45,21 @@ describe('session-start hook', () => {
   describe('when Jarvis server is unreachable', () => {
     it('exits with code 0', async () => {
       const { exitCode } = await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: 'http://localhost:19999',
+        CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://localhost:19999',
       });
       expect(exitCode).toBe(0);
     });
 
     it('outputs valid JSON', async () => {
       const { stdout } = await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: 'http://localhost:19999',
+        CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://localhost:19999',
       });
       expect(() => JSON.parse(stdout)).not.toThrow();
     });
 
     it('outputs hookSpecificOutput.additionalContext as a string', async () => {
       const { stdout } = await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: 'http://localhost:19999',
+        CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://localhost:19999',
       });
       const output = JSON.parse(stdout);
       expect(output).toHaveProperty('hookSpecificOutput');
@@ -67,12 +67,12 @@ describe('session-start hook', () => {
       expect(typeof output.hookSpecificOutput.additionalContext).toBe('string');
     });
 
-    it('outputs empty additionalContext on failure', async () => {
+    it('outputs only cache dir header on failure', async () => {
       const { stdout } = await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: 'http://localhost:19999',
+        CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://localhost:19999',
       });
       const output = JSON.parse(stdout);
-      expect(output.hookSpecificOutput.additionalContext).toBe('');
+      expect(output.hookSpecificOutput.additionalContext).toMatch(/^JARVIS_CACHE_DIR: .+\n\n$/);
     });
   });
 
@@ -112,17 +112,18 @@ describe('session-start hook', () => {
 
     it('exits with code 0', async () => {
       const { exitCode } = await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: `http://127.0.0.1:${serverPort}`,
+        CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${serverPort}`,
       });
       expect(exitCode).toBe(0);
     });
 
     it('outputs valid JSON with additionalContext from server', async () => {
       const { stdout } = await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: `http://127.0.0.1:${serverPort}`,
+        CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${serverPort}`,
       });
       const output = JSON.parse(stdout);
-      expect(output.hookSpecificOutput.additionalContext).toBe(MOCK_CONTEXT);
+      expect(output.hookSpecificOutput.additionalContext).toContain(MOCK_CONTEXT);
+      expect(output.hookSpecificOutput.additionalContext).toMatch(/^JARVIS_CACHE_DIR: /);
     });
   });
 
@@ -147,13 +148,13 @@ describe('session-start hook', () => {
       mockServer.close();
     });
 
-    it('outputs empty additionalContext on server error', async () => {
+    it('outputs only cache dir header on server error', async () => {
       const { stdout, exitCode } = await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: `http://127.0.0.1:${serverPort}`,
+        CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${serverPort}`,
       });
       expect(exitCode).toBe(0);
       const output = JSON.parse(stdout);
-      expect(output.hookSpecificOutput.additionalContext).toBe('');
+      expect(output.hookSpecificOutput.additionalContext).toMatch(/^JARVIS_CACHE_DIR: .+\n\n$/);
     });
   });
 
@@ -161,7 +162,7 @@ describe('session-start hook', () => {
     it('completes within 10s timeout', async () => {
       const start = Date.now();
       await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_serverUrl: 'http://localhost:19999',
+        CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://localhost:19999',
       });
       const elapsed = Date.now() - start;
       expect(elapsed).toBeLessThan(10_000);

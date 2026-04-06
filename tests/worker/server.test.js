@@ -53,10 +53,10 @@ function waitForServer(port, maxAttempts = 50) {
 function spawnWorker(cacheDir, port, envOverrides = {}) {
   const env = {
     ...process.env,
-    CLAUDE_PLUGIN_OPTION_serverUrl: 'http://127.0.0.1:19999',
-    CLAUDE_PLUGIN_OPTION_apiKey: 'test-key',
-    CLAUDE_PLUGIN_OPTION_cacheDir: cacheDir,
-    CLAUDE_PLUGIN_OPTION_workerPort: String(port),
+    CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://127.0.0.1:19999',
+    CLAUDE_PLUGIN_OPTION_APIKEY: 'test-key',
+    CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
+    CLAUDE_PLUGIN_OPTION_WORKERPORT: String(port),
     ...envOverrides,
   };
   return spawn('node', [SERVER_SCRIPT], { env, stdio: 'pipe' });
@@ -184,13 +184,13 @@ describe('worker/server', () => {
 
   it('exits with 1 when API key is missing', async () => {
     const env = {
-      CLAUDE_PLUGIN_OPTION_serverUrl: 'http://127.0.0.1:19999',
-      CLAUDE_PLUGIN_OPTION_cacheDir: cacheDir,
-      CLAUDE_PLUGIN_OPTION_workerPort: String(workerPort),
+      CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://127.0.0.1:19999',
+      CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
+      CLAUDE_PLUGIN_OPTION_WORKERPORT: String(workerPort),
     };
     // Create a clean env without apiKey
     const cleanEnv = { ...process.env, ...env };
-    delete cleanEnv.CLAUDE_PLUGIN_OPTION_apiKey;
+    delete cleanEnv.CLAUDE_PLUGIN_OPTION_APIKEY;
 
     const child = spawn('node', [SERVER_SCRIPT], { env: cleanEnv, stdio: 'pipe' });
     children.push(child);
