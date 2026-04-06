@@ -9,14 +9,14 @@ function resolveHome(p) {
   return p;
 }
 
-const SERVER_URL = process.env.CLAUDE_PLUGIN_OPTION_serverUrl || 'http://localhost:8000';
-const API_KEY = process.env.CLAUDE_PLUGIN_OPTION_apiKey;
-const CACHE_DIR = resolveHome(process.env.CLAUDE_PLUGIN_OPTION_cacheDir || '~/.jarvis-cache/ai-memory');
-const WORKER_PORT = Number(process.env.CLAUDE_PLUGIN_OPTION_workerPort) || 37777;
+const SERVER_URL = process.env.CLAUDE_PLUGIN_OPTION_SERVERURL || 'http://localhost:8000';
+const API_KEY = process.env.CLAUDE_PLUGIN_OPTION_APIKEY;
+const CACHE_DIR = resolveHome(process.env.CLAUDE_PLUGIN_OPTION_CACHEDIR || '~/.jarvis-cache/ai-memory');
+const WORKER_PORT = Number(process.env.CLAUDE_PLUGIN_OPTION_WORKERPORT) || 37777;
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 function parseExtraHeaders() {
-  const raw = process.env.CLAUDE_PLUGIN_OPTION_extraHeaders || '';
+  const raw = process.env.CLAUDE_PLUGIN_OPTION_EXTRAHEADERS || '';
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw);
