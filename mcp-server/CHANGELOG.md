@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-mcp-server-v0.2.0...jarvis-mcp-server-v0.3.0) (2026-04-06)
+
+
+### Features
+
+* switch MCP server publishing from GitHub Packages to npmjs.com ([c5a954e](https://github.com/parasite2060/jarvis-claude-plugin/commit/c5a954e5c0a67864b4e2a6c691fb0d8bcc6dc6a5))
+
+
+### Bug Fixes
+
+* MCP server reads credentials from Claude config files as fallback ([fdbfcb7](https://github.com/parasite2060/jarvis-claude-plugin/commit/fdbfcb78b222fad195c377189c815c0ecbb4589e))
+* update version to 0.2.1 in package-lock.json ([d9b9b7c](https://github.com/parasite2060/jarvis-claude-plugin/commit/d9b9b7cfcc25dd6d990cfebeafb346c0a87ce0d7))
+* use env vars for config instead of reading credential files ([e2ac174](https://github.com/parasite2060/jarvis-claude-plugin/commit/e2ac174d5a52eaac7297aef1c4a825d2262d506f))
+
 ## [0.2.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-mcp-server-v0.1.0...jarvis-mcp-server-v0.2.0) (2026-04-05)
 
 
