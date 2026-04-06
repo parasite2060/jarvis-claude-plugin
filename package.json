@@ -1,6 +1,6 @@
 {
   "name": "jarvis-claude-plugin",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Jarvis memory system plugin for Claude Code - hooks, MCP tools, and commands for persistent AI memory",
   "type": "module",
   "private": true,
