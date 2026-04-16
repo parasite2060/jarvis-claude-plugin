@@ -7,6 +7,7 @@
 
 import { post } from './lib/jarvis-client.js';
 import { readTranscript, filterSensitiveData } from './lib/transcript.js';
+import { getLastPosition, extractSegment } from './lib/transcript-state.js';
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -35,10 +36,15 @@ try {
   }
 
   const filtered = filterSensitiveData(content);
+  const lastLine = await getLastPosition(session_id);
+  const { content: segment, startLine, endLine } = extractSegment(filtered, lastLine);
+
   await post('/conversations', {
     sessionId: session_id,
-    transcript: filtered,
+    transcript: segment,
     source: 'pre-compact',
+    segmentStartLine: startLine,
+    segmentEndLine: endLine,
   });
 
   console.error(`jarvis.pre-compact.success: sent transcript for session ${session_id}`);
