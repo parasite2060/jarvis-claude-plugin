@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.4.0...jarvis-plugin-v0.5.0) (2026-04-18)
+
+
+### Features
+
+* **epic-10:** story 10.1 expanded client-side secret filter ([0cb547e](https://github.com/parasite2060/jarvis-claude-plugin/commit/0cb547ea964cec4dca314fe55e9513b2769d882a))
+* **epic-11:** story 11.3 mcp dream tool + plugin command rewrite ([cb7ebaa](https://github.com/parasite2060/jarvis-claude-plugin/commit/cb7ebaa32137ebcb30840bca5c5dd5d632a49591))
+* **epic-11:** story 11.7 plugin secret patterns JSON + parity tests ([e8adfef](https://github.com/parasite2060/jarvis-claude-plugin/commit/e8adfefe196ce05c59ac8e86a536edc9d3328f55))
+* **epic-9:** implement story 9.26 — incremental transcript capture ([101b7c2](https://github.com/parasite2060/jarvis-claude-plugin/commit/101b7c2ae3ba3d71738dc3fc58ccfe269977a9c9))
+
 ## [0.4.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.3.1...jarvis-plugin-v0.4.0) (2026-04-06)
 
 

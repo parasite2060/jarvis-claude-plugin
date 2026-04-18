@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-mcp-server-v0.3.0...jarvis-mcp-server-v0.4.0) (2026-04-18)
+
+
+### Features
+
+* **epic-11:** story 11.3 mcp dream tool + plugin command rewrite ([cb7ebaa](https://github.com/parasite2060/jarvis-claude-plugin/commit/cb7ebaa32137ebcb30840bca5c5dd5d632a49591))
+
 ## [0.3.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-mcp-server-v0.2.0...jarvis-mcp-server-v0.3.0) (2026-04-06)
 
 
