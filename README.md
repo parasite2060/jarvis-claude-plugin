@@ -20,11 +20,11 @@ Claude Code Session
     └── Stop hook ──► POST /conversations ──► Capture full transcript for dreaming
 ```
 
-## Prerequisites
+## Requirements
 
+- **Node.js ≥ 18.0.0** — the plugin, MCP server, and background worker all use Node's native `fetch` API (available since Node 18). Earlier versions will fail with `ReferenceError: fetch is not defined`. Enforced via `engines` + `.npmrc` `engine-strict=true`; `npm install` will exit non-zero on older versions.
 - [Claude Code](https://claude.ai/claude-code) installed
-- [Node.js 20+](https://nodejs.org/) — required for hooks and MCP server
-- Jarvis server running and accessible
+- A running Jarvis server (default: `http://localhost:8000`). See [jarvis-server README](https://github.com/parasite2060/jarvis-server).
 
 ## Installation
 
