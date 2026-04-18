@@ -1,4 +1,11 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const PATTERNS_JSON_PATH = join(__dirname, 'secret_patterns.json');
 
 /**
  * Reads a JSONL transcript file and returns its content as a string.
@@ -15,15 +22,50 @@ export function readTranscript(transcriptPath) {
   }
 }
 
+// 'match' MUST remain as the first parameter — String.prototype.replace callback signature is
+// (match, p1, p2, ..., offset, string). Removing it would shift `scheme` to position 0 and
+// silently break redaction.
+function redactUrlBasicAuth(_match, scheme) {
+  return `${scheme}://[REDACTED_USER]:[REDACTED_PW]@`;
+}
+
+const FUNCTION_REGISTRY = {
+  url_basic_auth: redactUrlBasicAuth,
+};
+
+function loadPatterns() {
+  const raw = readFileSync(PATTERNS_JSON_PATH, 'utf8');
+  const data = JSON.parse(raw);
+
+  return data.patterns.map((entry) => {
+    const compiled = new RegExp(entry.regex, entry.flags);
+
+    if (entry.replacement_type === 'literal' || entry.replacement_type === 'backref') {
+      return { name: entry.name, regex: compiled, replacement: entry.replacement };
+    }
+
+    if (entry.replacement_type === 'function') {
+      const fn = FUNCTION_REGISTRY[entry.function];
+      if (!fn) {
+        throw new Error(
+          `Unknown function '${entry.function}' for pattern '${entry.name}' — add it to FUNCTION_REGISTRY`
+        );
+      }
+      return { name: entry.name, regex: compiled, replacement: fn };
+    }
+
+    throw new Error(
+      `Unknown replacement_type '${entry.replacement_type}' for pattern '${entry.name}'`
+    );
+  });
+}
+
+export const SECRET_PATTERNS = loadPatterns();
+
 /**
- * Filters sensitive data from transcript content using conservative regex patterns.
- * Mirrors the server-side SecretScrubber pattern set (Story 10.1). The server
- * remains authoritative — this client filter reduces bytes on the wire and
- * catches secrets before they leave the user's machine.
- *
- * Ordering: multi-line PEM first, then single-line patterns. JSON/env-value
- * patterns run last and skip values already shaped as `[REDACTED*]` placeholders
- * so we don't re-redact earlier replacements.
+ * Filters sensitive data from transcript content. Patterns load from
+ * `secret_patterns.json` (vendored byte-equal copy of server's canonical file).
+ * Story 11.7 enforces parity via unit tests on both sides.
  *
  * @param {string} content - Raw transcript content
  * @returns {string} Filtered content with secrets redacted
@@ -31,70 +73,9 @@ export function readTranscript(transcriptPath) {
 export function filterSensitiveData(content) {
   let filtered = content;
 
-  // PEM private key blocks (multi-line). [\s\S] emulates Python's re.DOTALL.
-  filtered = filtered.replace(
-    /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
-    '[REDACTED_PEM]'
-  );
-
-  // Anthropic keys must come before the generic sk- rule so sk-ant-... is
-  // not matched twice.
-  filtered = filtered.replace(/sk-ant-[A-Za-z0-9_-]{20,}/g, '[REDACTED_API_KEY]');
-
-  // OpenAI-style sk- keys.
-  filtered = filtered.replace(/sk-[A-Za-z0-9_-]{20,}/g, '[REDACTED_API_KEY]');
-
-  // AWS access keys.
-  filtered = filtered.replace(/AKIA[A-Z0-9]{16}/g, '[REDACTED_AWS_KEY]');
-
-  // GitHub tokens (ghp_, gho_, ghu_, ghs_, ghr_).
-  filtered = filtered.replace(
-    /gh[pousr]_[A-Za-z0-9]{36,}/g,
-    '[REDACTED_GITHUB_TOKEN]'
-  );
-
-  // Google API keys.
-  filtered = filtered.replace(/AIzaSy[A-Za-z0-9_-]{33}/g, '[REDACTED_GOOGLE_KEY]');
-
-  // Slack tokens.
-  filtered = filtered.replace(
-    /xox[baprs]-[A-Za-z0-9-]{10,}/g,
-    '[REDACTED_SLACK_TOKEN]'
-  );
-
-  // JWTs (three base64url segments separated by dots). Character class must
-  // exclude `.` so the regex stops at the three-segment boundary and matches
-  // Python's semantics in `secret_scrubber.py` (AC7 parity).
-  filtered = filtered.replace(
-    /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
-    '[REDACTED_JWT]'
-  );
-
-  // URL basic-auth credentials across common schemes.
-  filtered = filtered.replace(
-    /(https?|postgres|postgresql|mongodb(?:\+srv)?|redis|amqp|mysql):\/\/[^\s:/@]+:[^\s@]+@/g,
-    '$1://[REDACTED_USER]:[REDACTED_PW]@'
-  );
-
-  // Bearer tokens in JSON strings: "Bearer ..." or "bearer ..."
-  filtered = filtered.replace(
-    /(["']?[Bb]earer\s+)[A-Za-z0-9_.\-/+=]{20,}/g,
-    '$1[REDACTED_TOKEN]'
-  );
-
-  // JSON key-value pairs for sensitive fields. Handles both unescaped and
-  // JSON-escaped quotes (\" in nested JSON strings). Skips values already
-  // shaped as [REDACTED...] placeholders.
-  filtered = filtered.replace(
-    /(\\?"(?:password|passwd|secret|api_key|apiKey|api[-_]?secret|access[-_]?token|auth[-_]?token|refresh_token|client_secret|private_key|signing_key|encryption_key)\\?"\s*:\s*\\?")(?!\[REDACTED)([^"\\]+)(\\?")/gi,
-    '$1[REDACTED]$3'
-  );
-
-  // Environment-variable assignments with sensitive names. Skip already-redacted.
-  filtered = filtered.replace(
-    /((?:API_KEY|APIKEY|SECRET|TOKEN|PASSWORD|AUTH_TOKEN|ACCESS_TOKEN|REFRESH_TOKEN|CLIENT_SECRET|AUTH_SECRET|DB_PASSWORD|ENCRYPTION_KEY|SIGNING_KEY|PRIVATE_KEY)\s*=\s*)(?!\[REDACTED)(\S+)/gi,
-    '$1[REDACTED]'
-  );
+  for (const { regex, replacement } of SECRET_PATTERNS) {
+    filtered = filtered.replace(regex, replacement);
+  }
 
   return filtered;
 }

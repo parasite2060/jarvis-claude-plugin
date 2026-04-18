@@ -1,11 +1,30 @@
 // Synthetic fake secrets for regex tests. Not real credentials.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { readTranscript, filterSensitiveData } from '../../hooks/lib/transcript.js';
-import * as fs from 'node:fs';
+
+const { realPatternsJson } = vi.hoisted(() => {
+  const { readFileSync } = require('node:fs');
+  const { fileURLToPath } = require('node:url');
+  const { dirname, join } = require('node:path');
+  const here = dirname(fileURLToPath(import.meta.url));
+  return {
+    realPatternsJson: readFileSync(
+      join(here, '../../hooks/lib/secret_patterns.json'),
+      'utf8'
+    ),
+  };
+});
 
 vi.mock('node:fs', () => ({
-  readFileSync: vi.fn(),
+  readFileSync: vi.fn((path) => {
+    if (typeof path === 'string' && path.endsWith('secret_patterns.json')) {
+      return realPatternsJson;
+    }
+    throw new Error(`unexpected readFileSync mock call: ${path}`);
+  }),
 }));
+
+import { readTranscript, filterSensitiveData } from '../../hooks/lib/transcript.js';
+import * as fs from 'node:fs';
 
 describe('transcript module', () => {
   beforeEach(() => {
