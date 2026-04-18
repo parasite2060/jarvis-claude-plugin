@@ -3,6 +3,9 @@
   "version": "0.3.0",
   "description": "Jarvis MCP server providing memory_search and memory_add tools for Claude Code",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "main": "dist/index.js",
   "bin": {
     "jarvis-mcp-server": "dist/index.js"

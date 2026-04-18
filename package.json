@@ -4,6 +4,9 @@
   "description": "Jarvis memory system plugin for Claude Code - hooks, MCP tools, and commands for persistent AI memory",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
