@@ -8,3 +8,5 @@ export const memoryAddSchema = z.object({
   content: z.string().describe('Memory content to store'),
   context: z.string().optional().describe('Additional context about when/why this memory matters'),
 });
+
+export const dreamSchema = z.object({});

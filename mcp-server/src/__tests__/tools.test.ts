@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { memorySearchSchema, memoryAddSchema } from '../schemas.js';
+import { memorySearchSchema, memoryAddSchema, dreamSchema } from '../schemas.js';
 
 describe('memory_search schema', () => {
   it('accepts a valid query string', () => {
@@ -56,6 +56,18 @@ describe('memory_add schema', () => {
 
   it('accepts explicit undefined context', () => {
     const result = memoryAddSchema.safeParse({ content: 'valid', context: undefined });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('dream schema', () => {
+  it('accepts an empty object', () => {
+    const result = dreamSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it('strips unknown fields and still parses', () => {
+    const result = dreamSchema.safeParse({ type: 'deep' });
     expect(result.success).toBe(true);
   });
 });
