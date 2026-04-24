@@ -54,4 +54,26 @@ describe('handleDream', () => {
     await handleDream();
     expect(mockJarvisPost).toHaveBeenCalledWith('/dream', {});
   });
+
+  it('sends empty body when no source_date provided', async () => {
+    mockJarvisPost.mockResolvedValueOnce({
+      ok: true,
+      data: { data: { status: 'queued' }, status: 'ok' },
+    } as JarvisResult<unknown>);
+
+    const result = await handleDream();
+    expect(mockJarvisPost).toHaveBeenCalledWith('/dream', {});
+    expect(result.content[0].text).toContain('Dream queued. Deep consolidation');
+  });
+
+  it('forwards source_date in body and response text', async () => {
+    mockJarvisPost.mockResolvedValueOnce({
+      ok: true,
+      data: { data: { status: 'queued' }, status: 'ok' },
+    } as JarvisResult<unknown>);
+
+    const result = await handleDream({ source_date: '2026-04-20' });
+    expect(mockJarvisPost).toHaveBeenCalledWith('/dream', { source_date: '2026-04-20' });
+    expect(result.content[0].text).toContain('Dream queued for 2026-04-20');
+  });
 });

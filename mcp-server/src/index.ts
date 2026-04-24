@@ -27,9 +27,9 @@ server.tool(
 
 server.tool(
   'dream',
-  'Trigger a manual deep dream (memory consolidation) on the Jarvis server. Returns immediately once queued. The dream runs asynchronously in the background.',
+  'Trigger a manual deep dream (memory consolidation) on the Jarvis server. Accepts an optional source_date (YYYY-MM-DD) to backfill a past day. Returns immediately once queued. The dream runs asynchronously in the background.',
   dreamSchema.shape,
-  async () => handleDream(),
+  async (args) => handleDream(args),
 );
 
 const transport = new StdioServerTransport();
