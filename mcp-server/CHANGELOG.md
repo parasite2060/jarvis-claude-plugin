@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-mcp-server-v0.4.0...jarvis-mcp-server-v0.5.0) (2026-04-24)
+
+
+### Features
+
+* **epic-11:** story 11.19 MCP dream tool accepts optional source_date ([2e43cdf](https://github.com/parasite2060/jarvis-claude-plugin/commit/2e43cdf9678d75e3ae2a24c544d8e3f3379ffbba))
+
+
+### Bug Fixes
+
+* update dependencies for @hono/node-server, hono, and vite to latest versions ([58ae574](https://github.com/parasite2060/jarvis-claude-plugin/commit/58ae574d03d16694622c7d9f45175d99e0df1265))
+
 ## [0.4.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-mcp-server-v0.3.0...jarvis-mcp-server-v0.4.0) (2026-04-18)
 
 
