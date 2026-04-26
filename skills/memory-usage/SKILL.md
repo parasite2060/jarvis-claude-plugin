@@ -1,3 +1,8 @@
+---
+name: memory-usage
+description: Use whenever you need anything about the user's identity, persona, preferences, decisions, or project history — including "do you know me", "what did I decide about X", "what's my stack", before recommending a library, before starting new feature work, and proactively after the user states a preference, decision, correction, or lesson learned. The user's second brain is at JARVIS_CACHE_DIR — read SOUL/IDENTITY/MEMORY first, then folder _index.md files, then specific decision/pattern/lesson files. Use the memory_add MCP tool to record durable facts and memory_search for semantic queries.
+---
+
 # Memory Usage Skill
 
 Instructions for using Jarvis memory tools during Claude Code sessions. Follow these guidelines proactively throughout the entire session.
@@ -59,14 +64,15 @@ Bad (do not do this):
 
 ### Check Injected Context First
 
-At session start, you already have in context:
-- SOUL.md — principles, decision philosophy
-- IDENTITY.md — role, tech stack, current projects
-- MEMORY.md — index of key facts (<200 lines)
-- Today's and yesterday's daily logs
-- Index files for decisions/, projects/, patterns/, templates/
+At session start, four hooks inject (concatenated into one system-reminder):
+- SOUL.md — worldview, decision principles, opinions, tensions, boundaries (≤1500 chars)
+- IDENTITY.md — role, tech stack, working style, active projects (≤1500 chars)
+- MEMORY.md — strong patterns, decisions, facts index (≤5000 chars)
+- Vault tree map — JARVIS_CACHE_DIR + 5-most-recent files for hot folders (concepts, decisions, lessons, patterns, projects, references); counts only for cold folders (connections, dailys, reviews, templates, topics)
 
-**Check these first** before calling `memory_search`. Only search when the answer is not in the injected context.
+**Daily logs are NOT injected eagerly.** Read `JARVIS_CACHE_DIR/dailys/<YYYY-MM-DD>.md` directly when needed.
+
+**Check the injected context first** before calling `memory_search`. Only search when the answer is not in the injected context.
 
 ### When to Search
 

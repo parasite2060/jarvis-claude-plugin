@@ -81,4 +81,72 @@ export async function getContext() {
   return null;
 }
 
+/**
+ * Fetch SOUL.md content from /memory/soul.
+ * @returns {Promise<string | null>}
+ */
+export async function getSoul() {
+  const data = await get('/memory/soul');
+  if (data == null) return null;
+  if (typeof data === 'object' && 'data' in data) {
+    const inner = data.data;
+    if (typeof inner === 'object' && inner !== null && 'content' in inner) {
+      return String(inner.content);
+    }
+  }
+  return null;
+}
+
+/**
+ * Fetch IDENTITY.md content from /memory/identity.
+ * @returns {Promise<string | null>}
+ */
+export async function getIdentity() {
+  const data = await get('/memory/identity');
+  if (data == null) return null;
+  if (typeof data === 'object' && 'data' in data) {
+    const inner = data.data;
+    if (typeof inner === 'object' && inner !== null && 'content' in inner) {
+      return String(inner.content);
+    }
+  }
+  return null;
+}
+
+/**
+ * Fetch MEMORY.md content from /memory/memory.
+ * @returns {Promise<string | null>}
+ */
+export async function getMemory() {
+  const data = await get('/memory/memory');
+  if (data == null) return null;
+  if (typeof data === 'object' && 'data' in data) {
+    const inner = data.data;
+    if (typeof inner === 'object' && inner !== null && 'content' in inner) {
+      return String(inner.content);
+    }
+  }
+  return null;
+}
+
+/**
+ * Fetch the file manifest from /memory/files/manifest.
+ * Returns array of { path, updatedAt } sorted by manifest order.
+ * @returns {Promise<Array<{path: string, updatedAt: string}>>}
+ */
+export async function getFileManifest() {
+  const data = await get('/memory/files/manifest');
+  if (data == null) return [];
+  if (typeof data === 'object' && 'data' in data) {
+    const inner = data.data;
+    if (typeof inner === 'object' && inner !== null && Array.isArray(inner.files)) {
+      return inner.files.map((f) => ({
+        path: String(f.path),
+        updatedAt: String(f.updatedAt),
+      }));
+    }
+  }
+  return [];
+}
+
 export { config };
