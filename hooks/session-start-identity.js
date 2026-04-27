@@ -9,8 +9,7 @@ import { getIdentity } from './lib/jarvis-client.js';
 const PREFACE = (
   "Below is your operator's IDENTITY — role, tech stack, working style, active " +
   "projects. Use this to tailor recommendations, default tools, and " +
-  "communication level.\n\n" +
-  "## IDENTITY\n\n"
+  "communication level.\n\n"
 );
 
 function readStdin() {
@@ -27,7 +26,7 @@ const raw = await readStdin();
 try {
   JSON.parse(raw);
   const identity = await getIdentity();
-  const additionalContext = identity ? PREFACE + identity : '';
+  const additionalContext = identity ? `${PREFACE}<identity>\n${identity}\n</identity>` : '';
 
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {

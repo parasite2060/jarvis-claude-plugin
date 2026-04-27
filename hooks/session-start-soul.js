@@ -9,8 +9,7 @@ import { getSoul } from './lib/jarvis-client.js';
 const PREFACE = (
   "Below is your operator's SOUL — worldview, decision principles, opinions, " +
   "tensions, and boundaries. Treat this as authoritative for tone, judgment, and " +
-  "reasoning style. Match the persona; don't summarize it back at the user.\n\n" +
-  "## SOUL\n\n"
+  "reasoning style. Match the persona; don't summarize it back at the user.\n\n"
 );
 
 function readStdin() {
@@ -27,7 +26,7 @@ const raw = await readStdin();
 try {
   JSON.parse(raw);
   const soul = await getSoul();
-  const additionalContext = soul ? PREFACE + soul : '';
+  const additionalContext = soul ? `${PREFACE}<soul>\n${soul}\n</soul>` : '';
 
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {

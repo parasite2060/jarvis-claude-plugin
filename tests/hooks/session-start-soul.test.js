@@ -95,16 +95,19 @@ describe('session-start-soul hook', () => {
 
     afterAll(() => { server.close(); });
 
-    it('emits framing preface + SOUL content', async () => {
+    it('emits framing preface + <soul>-wrapped content', async () => {
       const { stdout, exitCode } = await runHook(MOCK_INPUT, {
         CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${port}`,
       });
       expect(exitCode).toBe(0);
       const output = JSON.parse(stdout);
       const ctx = output.hookSpecificOutput.additionalContext;
-      expect(ctx).toContain('SOUL');
+      expect(ctx).toContain('<soul>');
+      expect(ctx).toContain('</soul>');
       expect(ctx).toContain(MOCK_SOUL);
       expect(ctx).toMatch(/operator/i);
+      // PREFACE must come before the opening tag
+      expect(ctx.indexOf('operator')).toBeLessThan(ctx.indexOf('<soul>'));
     });
 
     it('output stays under 10K chars (Claude Code hook cap)', async () => {

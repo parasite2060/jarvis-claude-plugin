@@ -95,16 +95,18 @@ describe('session-start-identity hook', () => {
 
     afterAll(() => { server.close(); });
 
-    it('emits framing preface + IDENTITY content', async () => {
+    it('emits framing preface + <identity>-wrapped content', async () => {
       const { stdout, exitCode } = await runHook(MOCK_INPUT, {
         CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${port}`,
       });
       expect(exitCode).toBe(0);
       const output = JSON.parse(stdout);
       const ctx = output.hookSpecificOutput.additionalContext;
-      expect(ctx).toContain('IDENTITY');
+      expect(ctx).toContain('<identity>');
+      expect(ctx).toContain('</identity>');
       expect(ctx).toContain(MOCK_IDENTITY);
       expect(ctx).toMatch(/operator/i);
+      expect(ctx.indexOf('operator')).toBeLessThan(ctx.indexOf('<identity>'));
     });
 
     it('output stays under 10K chars (Claude Code hook cap)', async () => {

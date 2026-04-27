@@ -53,14 +53,17 @@ function makeManifestServer(files) {
 
 describe('session-start-vault-tree hook', () => {
   describe('when server unreachable', () => {
-    it('exits 0 with empty additionalContext and emits no stack trace', async () => {
+    it('exits 0 with <vault>-wrapped JARVIS_CACHE_DIR pointer and emits no stack trace', async () => {
       const { stdout, stderr, exitCode } = await runHook(MOCK_INPUT, {
         CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://127.0.0.1:19995',
       });
       expect(exitCode).toBe(0);
       const output = JSON.parse(stdout);
-      // With no manifest data, emit only JARVIS_CACHE_DIR pointer
-      expect(output.hookSpecificOutput.additionalContext).toMatch(/JARVIS_CACHE_DIR:/);
+      const ctx = output.hookSpecificOutput.additionalContext;
+      // Even on manifest fetch failure, the <vault> envelope wraps the JARVIS_CACHE_DIR pointer.
+      expect(ctx).toContain('<vault>');
+      expect(ctx).toContain('</vault>');
+      expect(ctx).toMatch(/JARVIS_CACHE_DIR:/);
       // No V8 stack trace leaked
       expect(stderr).not.toContain('    at ');
     });
@@ -140,12 +143,17 @@ describe('session-start-vault-tree hook', () => {
       expect(ctx).not.toContain('2026-04-25.md'); // cold = no leaves
     });
 
-    it('includes JARVIS_CACHE_DIR header', async () => {
+    it('includes JARVIS_CACHE_DIR header inside <vault> envelope', async () => {
       const { stdout } = await runHook(MOCK_INPUT, {
         CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${port}`,
       });
       const ctx = JSON.parse(stdout).hookSpecificOutput.additionalContext;
+      expect(ctx).toMatch(/^<vault>/);
+      expect(ctx).toMatch(/<\/vault>$/);
       expect(ctx).toMatch(/JARVIS_CACHE_DIR: /);
+      // Pointer must sit inside the envelope, not outside
+      expect(ctx.indexOf('JARVIS_CACHE_DIR:')).toBeGreaterThan(ctx.indexOf('<vault>'));
+      expect(ctx.indexOf('JARVIS_CACHE_DIR:')).toBeLessThan(ctx.indexOf('</vault>'));
     });
 
     it('lists root files inline', async () => {

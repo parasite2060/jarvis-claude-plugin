@@ -9,8 +9,7 @@ import { getMemory } from './lib/jarvis-client.js';
 const PREFACE = (
   "Below is your operator's MEMORY index — strong patterns, decisions, facts, " +
   "and recent extractions. Consult this for \"have we done X before\", \"what " +
-  "did I decide\", and before recommending libraries or approaches.\n\n" +
-  "## MEMORY\n\n"
+  "did I decide\", and before recommending libraries or approaches.\n\n"
 );
 
 function readStdin() {
@@ -27,7 +26,7 @@ const raw = await readStdin();
 try {
   JSON.parse(raw);
   const memory = await getMemory();
-  const additionalContext = memory ? PREFACE + memory : '';
+  const additionalContext = memory ? `${PREFACE}<memory>\n${memory}\n</memory>` : '';
 
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
