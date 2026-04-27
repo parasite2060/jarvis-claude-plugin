@@ -98,11 +98,12 @@ try {
   const cacheDir = resolveCacheDir();
   const files = await getFileManifest();
 
-  let additionalContext = `JARVIS_CACHE_DIR: ${cacheDir}\n\n`;
+  let body = `JARVIS_CACHE_DIR: ${cacheDir}\n`;
   if (files.length > 0) {
     const groups = groupByFolder(files);
-    additionalContext += PREFACE + renderTree(groups);
+    body += `\n${PREFACE}${renderTree(groups)}`;
   }
+  const additionalContext = `<vault>\n${body}\n</vault>`;
 
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
