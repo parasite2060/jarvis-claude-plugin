@@ -119,6 +119,11 @@ describe('worker/server', () => {
     expect(res.body).toHaveProperty('lastManifestHash');
     expect(res.body).toHaveProperty('fileCount');
     expect(res.body).toHaveProperty('cacheDir', cacheDir);
+    expect(typeof res.body.version).toBe('string');
+    expect(res.body.version).not.toBe('');
+    expect(res.body).toHaveProperty('pluginRoot');
+    expect(res.body).toHaveProperty('lastDrain');
+    expect(res.body).toHaveProperty('lastDrainResult');
   });
 
   it('POST /sync triggers sync and returns result', async () => {
