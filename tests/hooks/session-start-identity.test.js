@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { spawn } from 'node:child_process';
-import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { runHook } from '../helpers/run-hook.js';
+import { startMemoryDocServer } from '../helpers/context-section-server.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HOOK_PATH = join(__dirname, '../../hooks/session-start-identity.js');
@@ -14,119 +14,81 @@ const MOCK_INPUT = JSON.stringify({
   hook_event_name: 'SessionStart',
 });
 
-function runHook(stdinData, env = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn('node', [HOOK_PATH], {
-      env: { ...process.env, ...env },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (c) => { stdout += c.toString(); });
-    child.stderr.on('data', (c) => { stderr += c.toString(); });
-    child.on('close', (code) => resolve({ stdout, stderr, exitCode: code ?? 0 }));
-    child.on('error', reject);
-    child.stdin.write(stdinData);
-    child.stdin.end();
-  });
-}
+const UNREACHABLE_URL = 'http://127.0.0.1:19996';
 
-describe('session-start-identity hook', () => {
-  describe('when server unreachable', () => {
-    it('exits with code 0 and emits no stack trace', async () => {
-      const { exitCode, stderr } = await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://127.0.0.1:19996',
-      });
-      expect(exitCode).toBe(0);
-      expect(stderr).not.toContain('    at ');
+describe('session-start-identity hook > when server unreachable', () => {
+  it('should exit 0 with empty additionalContext and no stack trace when server is down', async () => {
+    // Act
+    const { stdout, stderr, exitCode } = await runHook(HOOK_PATH, MOCK_INPUT, {
+      CLAUDE_PLUGIN_OPTION_SERVERURL: UNREACHABLE_URL,
     });
 
-    it('outputs valid JSON with empty additionalContext', async () => {
-      const { stdout } = await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://127.0.0.1:19996',
-      });
-      const output = JSON.parse(stdout);
-      expect(output.hookSpecificOutput.hookEventName).toBe('SessionStart');
-      expect(output.hookSpecificOutput.additionalContext).toBe('');
+    // Assert
+    expect(exitCode).toBe(0);
+    expect(stderr).not.toContain('    at ');
+    expect(JSON.parse(stdout)).toEqual({
+      hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: '' },
     });
   });
+});
 
-  describe('when stdin is invalid JSON', () => {
-    it('still emits valid JSON with empty additionalContext, exits 0', async () => {
-      const { stdout, exitCode, stderr } = await runHook('not-valid-json{', {
-        CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://127.0.0.1:19996',
-      });
-      expect(exitCode).toBe(0);
-      // stdout must still be parseable
-      const output = JSON.parse(stdout);
-      expect(output.hookSpecificOutput.hookEventName).toBe('SessionStart');
-      expect(output.hookSpecificOutput.additionalContext).toBe('');
-      // error label appears in stderr
-      expect(stderr).toContain('jarvis.session-start-identity.error:');
-      // no V8 stack trace leaked
-      expect(stderr).not.toContain('    at ');
+describe('session-start-identity hook > when stdin is invalid JSON', () => {
+  it('should exit 0 with empty additionalContext when stdin cannot be parsed', async () => {
+    // Act
+    const { stdout, exitCode, stderr } = await runHook(HOOK_PATH, 'not-valid-json{', {
+      CLAUDE_PLUGIN_OPTION_SERVERURL: UNREACHABLE_URL,
     });
+
+    // Assert
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({
+      hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: '' },
+    });
+    expect(stderr).toContain('jarvis.session-start-identity.error:');
+    expect(stderr).not.toContain('    at ');
+  });
+});
+
+describe('session-start-identity hook > when server returns IDENTITY.md', () => {
+  let server;
+  let port;
+  const MOCK_IDENTITY = '# Identity\n\nSenior dev, async-first, TS+Python.';
+
+  beforeAll(async () => {
+    ({ server, port } = await startMemoryDocServer({
+      endpoint: '/memory/identity',
+      content: MOCK_IDENTITY,
+      filePath: 'IDENTITY.md',
+    }));
   });
 
-  describe('when server returns IDENTITY.md', () => {
-    let server;
-    let port;
-    const MOCK_IDENTITY = '# Identity\n\nSenior dev, async-first, TS+Python.';
+  afterAll(() => { server.close(); });
 
-    beforeAll(async () => {
-      await new Promise((resolve) => {
-        server = createServer((req, res) => {
-          if (req.url === '/memory/identity' && req.method === 'GET') {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-              status: 'ok',
-              data: { content: MOCK_IDENTITY, filePath: 'IDENTITY.md' },
-            }));
-          } else {
-            res.writeHead(404); res.end();
-          }
-        });
-        server.listen(0, '127.0.0.1', () => {
-          port = server.address().port;
-          resolve();
-        });
-      });
+  it('should emit framing preface plus <identity>-wrapped content when server returns identity', async () => {
+    // Act
+    const { stdout, exitCode } = await runHook(HOOK_PATH, MOCK_INPUT, {
+      CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${port}`,
     });
 
-    afterAll(() => { server.close(); });
+    // Assert
+    expect(exitCode).toBe(0);
+    const ctx = JSON.parse(stdout).hookSpecificOutput.additionalContext;
+    expect(ctx).toContain('<identity>');
+    expect(ctx).toContain('</identity>');
+    expect(ctx).toContain(MOCK_IDENTITY);
+    expect(ctx).toMatch(/operator/i);
+    expect(ctx.indexOf('operator')).toBeLessThan(ctx.indexOf('<identity>'));
+  });
 
-    it('emits framing preface + <identity>-wrapped content', async () => {
-      const { stdout, exitCode } = await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${port}`,
-      });
-      expect(exitCode).toBe(0);
-      const output = JSON.parse(stdout);
-      const ctx = output.hookSpecificOutput.additionalContext;
-      expect(ctx).toContain('<identity>');
-      expect(ctx).toContain('</identity>');
-      expect(ctx).toContain(MOCK_IDENTITY);
-      expect(ctx).toMatch(/operator/i);
-      expect(ctx.indexOf('operator')).toBeLessThan(ctx.indexOf('<identity>'));
+  it('should keep output under 10K chars when server returns identity', async () => {
+    // Act
+    const { stdout } = await runHook(HOOK_PATH, MOCK_INPUT, {
+      CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${port}`,
     });
 
-    it('output stays under 10K chars (Claude Code hook cap)', async () => {
-      const { stdout } = await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${port}`,
-      });
-      const output = JSON.parse(stdout);
-      expect(output.hookSpecificOutput.additionalContext.length).toBeLessThan(10_000);
-    });
-
-    it('handles large IDENTITY.md content correctly', async () => {
-      // We can't change the existing mock server's payload from here, so this
-      // is a smoke test: the hook emits valid JSON with content present.
-      const { stdout } = await runHook(MOCK_INPUT, {
-        CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${port}`,
-      });
-      const output = JSON.parse(stdout);
-      expect(output.hookSpecificOutput.additionalContext.length).toBeGreaterThan(MOCK_IDENTITY.length);
-      // PREFACE adds at least 100 chars of framing
-      expect(output.hookSpecificOutput.additionalContext.length).toBeGreaterThanOrEqual(MOCK_IDENTITY.length + 100);
-    });
+    // Assert
+    const ctx = JSON.parse(stdout).hookSpecificOutput.additionalContext;
+    expect(ctx.length).toBeLessThan(10_000);
+    expect(ctx.length).toBeGreaterThanOrEqual(MOCK_IDENTITY.length + 100);
   });
 });

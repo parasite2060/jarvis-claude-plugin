@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 
 const MOCK_SERVER_URL = 'http://localhost:19876';
 
-describe('jarvis-client', () => {
+describe('jarvis-client > getContext', () => {
   let getContext;
   let mockFetch;
 
@@ -13,7 +13,6 @@ describe('jarvis-client', () => {
     mockFetch = vi.fn();
     vi.stubGlobal('fetch', mockFetch);
 
-    // Dynamic import to pick up stubbed env vars
     const mod = await import('../../hooks/lib/jarvis-client.js');
     getContext = mod.getContext;
   });
@@ -24,86 +23,95 @@ describe('jarvis-client', () => {
     vi.resetModules();
   });
 
-  it('extracts data.data.context string from server response', async () => {
+  it('should return data.data.context when server returns a well-formed envelope', async () => {
+    // Arrange
     const contextString = '## SOUL\n\nBe helpful.\n\n## IDENTITY\n\nSoftware engineer.';
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        data: {
-          context: contextString,
-          cached: true,
-          assembledAt: '2026-03-30T10:00:00Z',
-        },
+        data: { context: contextString, cached: true, assembledAt: '2026-03-30T10:00:00Z' },
         status: 'ok',
       }),
     });
 
+    // Act
     const result = await getContext();
+
+    // Assert
     expect(result).toBe(contextString);
   });
 
-  it('returns null when server response has no nested context field', async () => {
+  it('should return null when response data has no nested context field', async () => {
+    // Arrange
     mockFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({
-        data: { cached: true },
-        status: 'ok',
-      }),
+      json: async () => ({ data: { cached: true }, status: 'ok' }),
     });
 
+    // Act
     const result = await getContext();
+
+    // Assert
     expect(result).toBeNull();
   });
 
-  it('returns null when server response data is a plain string (malformed)', async () => {
+  it('should return null when response data is a string instead of an object', async () => {
+    // Arrange
     mockFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({
-        data: 'unexpected-string',
-        status: 'ok',
-      }),
+      json: async () => ({ data: 'unexpected-string', status: 'ok' }),
     });
 
+    // Act
     const result = await getContext();
+
+    // Assert
     expect(result).toBeNull();
   });
 
-  it('returns null when server response is completely empty object', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({}),
-    });
+  it('should return null when response is an empty object', async () => {
+    // Arrange
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
 
+    // Act
     const result = await getContext();
+
+    // Assert
     expect(result).toBeNull();
   });
 
-  it('returns null when server is unreachable', async () => {
+  it('should return null when server is unreachable', async () => {
+    // Arrange
     mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
 
+    // Act
     const result = await getContext();
+
+    // Assert
     expect(result).toBeNull();
   });
 
-  it('returns null when server returns non-ok status', async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-    });
+  it('should return null when server returns non-ok status', async () => {
+    // Arrange
+    mockFetch.mockResolvedValue({ ok: false, status: 500 });
 
+    // Act
     const result = await getContext();
+
+    // Assert
     expect(result).toBeNull();
   });
 });
 
-describe('getSoul', () => {
+describe('jarvis-client > getSoul', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.resetModules();
   });
 
-  it('returns content from /memory/soul', async () => {
+  it('should return content from /memory/soul when server returns it', async () => {
+    // Arrange
     const server = createServer((req, res) => {
       if (req.url === '/memory/soul' && req.method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -120,28 +128,38 @@ describe('getSoul', () => {
     vi.stubEnv('CLAUDE_PLUGIN_OPTION_SERVERURL', `http://127.0.0.1:${port}`);
     vi.resetModules();
     const { getSoul } = await import('../../hooks/lib/jarvis-client.js');
+
+    // Act
     const result = await getSoul();
+
+    // Assert
     expect(result).toBe('soul content here');
     server.close();
   });
 
-  it('returns null when server is unreachable', async () => {
+  it('should return null when server is unreachable', async () => {
+    // Arrange
     vi.stubEnv('CLAUDE_PLUGIN_OPTION_SERVERURL', 'http://127.0.0.1:19998');
     vi.resetModules();
     const { getSoul } = await import('../../hooks/lib/jarvis-client.js');
+
+    // Act
     const result = await getSoul();
+
+    // Assert
     expect(result).toBeNull();
   });
 });
 
-describe('getIdentity', () => {
+describe('jarvis-client > getIdentity', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.resetModules();
   });
 
-  it('returns content from /memory/identity', async () => {
+  it('should return content from /memory/identity when server returns it', async () => {
+    // Arrange
     const server = createServer((req, res) => {
       if (req.url === '/memory/identity' && req.method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -158,20 +176,25 @@ describe('getIdentity', () => {
     vi.stubEnv('CLAUDE_PLUGIN_OPTION_SERVERURL', `http://127.0.0.1:${port}`);
     vi.resetModules();
     const { getIdentity } = await import('../../hooks/lib/jarvis-client.js');
+
+    // Act
     const result = await getIdentity();
+
+    // Assert
     expect(result).toBe('identity content');
     server.close();
   });
 });
 
-describe('getMemory', () => {
+describe('jarvis-client > getMemory', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.resetModules();
   });
 
-  it('returns content from /memory/memory', async () => {
+  it('should return content from /memory/memory when server returns it', async () => {
+    // Arrange
     const server = createServer((req, res) => {
       if (req.url === '/memory/memory' && req.method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -188,20 +211,25 @@ describe('getMemory', () => {
     vi.stubEnv('CLAUDE_PLUGIN_OPTION_SERVERURL', `http://127.0.0.1:${port}`);
     vi.resetModules();
     const { getMemory } = await import('../../hooks/lib/jarvis-client.js');
+
+    // Act
     const result = await getMemory();
+
+    // Assert
     expect(result).toBe('memory content');
     server.close();
   });
 });
 
-describe('getFileManifest', () => {
+describe('jarvis-client > getFileManifest', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.resetModules();
   });
 
-  it('returns files array with mtime from /memory/files/manifest', async () => {
+  it('should return files array with mtime when server returns the manifest', async () => {
+    // Arrange
     const server = createServer((req, res) => {
       if (req.url === '/memory/files/manifest' && req.method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -226,17 +254,26 @@ describe('getFileManifest', () => {
     vi.stubEnv('CLAUDE_PLUGIN_OPTION_SERVERURL', `http://127.0.0.1:${port}`);
     vi.resetModules();
     const { getFileManifest } = await import('../../hooks/lib/jarvis-client.js');
+
+    // Act
     const result = await getFileManifest();
+
+    // Assert
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({ path: 'decisions/foo.md', updatedAt: '2026-04-26T10:00:00+00:00' });
     server.close();
   });
 
-  it('returns empty array when server is unreachable', async () => {
+  it('should return empty array when server is unreachable', async () => {
+    // Arrange
     vi.stubEnv('CLAUDE_PLUGIN_OPTION_SERVERURL', 'http://127.0.0.1:19997');
     vi.resetModules();
     const { getFileManifest } = await import('../../hooks/lib/jarvis-client.js');
+
+    // Act
     const result = await getFileManifest();
+
+    // Assert
     expect(result).toEqual([]);
   });
 });

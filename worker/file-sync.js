@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { STDERR_FALLBACK_LOGGER } from './lib/fallback-logger.js';
 
 const MANIFEST_FILENAME = '.manifest.json';
 
@@ -26,7 +27,7 @@ function encodePath(filePath) {
   return filePath.split('/').map(encodeURIComponent).join('/');
 }
 
-export async function syncFiles(serverUrl, apiKey, cacheDir, extraHeaders = {}) {
+export async function syncFiles(serverUrl, apiKey, cacheDir, extraHeaders = {}, logger = STDERR_FALLBACK_LOGGER) {
   const headers = { Authorization: `Bearer ${apiKey}`, ...extraHeaders };
   try {
     const manifestRes = await fetch(`${serverUrl}/memory/files/manifest`, {
@@ -35,7 +36,7 @@ export async function syncFiles(serverUrl, apiKey, cacheDir, extraHeaders = {}) 
 
     if (!manifestRes.ok) {
       const msg = `manifest request failed: ${manifestRes.status}`;
-      console.error(`jarvis.file-sync.manifest-fetch-failed: ${msg}`);
+      logger.error(`jarvis.file-sync.manifest-fetch-failed: ${msg}`);
       return { synced: false, reason: 'error', error: msg };
     }
 
@@ -67,8 +68,8 @@ export async function syncFiles(serverUrl, apiKey, cacheDir, extraHeaders = {}) 
     });
 
     const toDelete = [];
-    for (const [p] of localFileMap) {
-      if (!serverFileMap.has(p)) toDelete.push(p);
+    for (const [path] of localFileMap) {
+      if (!serverFileMap.has(path)) toDelete.push(path);
     }
 
     let filesDownloaded = 0;
@@ -79,7 +80,7 @@ export async function syncFiles(serverUrl, apiKey, cacheDir, extraHeaders = {}) 
           headers,
         });
         if (!fileRes.ok) {
-          console.error(`jarvis.file-sync.download-failed: ${file.path} status=${fileRes.status}`);
+          logger.warn(`jarvis.file-sync.download-failed: ${file.path} status=${fileRes.status}`);
           failedPaths.add(file.path);
           continue;
         }
@@ -91,15 +92,15 @@ export async function syncFiles(serverUrl, apiKey, cacheDir, extraHeaders = {}) 
         filesDownloaded++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`jarvis.file-sync.download-error: ${file.path} ${msg}`);
+        logger.warn(`jarvis.file-sync.download-error: ${file.path} ${msg}`);
         failedPaths.add(file.path);
       }
     }
 
     let filesDeleted = 0;
-    for (const p of toDelete) {
+    for (const path of toDelete) {
       try {
-        unlinkSync(join(cacheDir, p));
+        unlinkSync(join(cacheDir, path));
         filesDeleted++;
       } catch {
         // ignore — file may already be gone
@@ -138,7 +139,7 @@ export async function syncFiles(serverUrl, apiKey, cacheDir, extraHeaders = {}) 
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`jarvis.file-sync.error: ${msg}`);
+    logger.error(`jarvis.file-sync.error: ${msg}`);
     return { synced: false, reason: 'error', error: msg };
   }
 }

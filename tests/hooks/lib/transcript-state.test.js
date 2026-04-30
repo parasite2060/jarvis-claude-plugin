@@ -1,161 +1,193 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createServer } from 'node:http';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('../../../hooks/lib/jarvis-client.js', () => ({
+  get: vi.fn(),
+  config: { serverUrl: 'http://test', apiKey: 'test', cacheDir: '/tmp', workerPort: 0, extraHeaders: '' },
+}));
 
 describe('transcript-state', () => {
   describe('extractSegment', () => {
     let extractSegment;
 
-    beforeAll(async () => {
+    beforeEach(async () => {
       const mod = await import('../../../hooks/lib/transcript-state.js');
       extractSegment = mod.extractSegment;
     });
 
-    it('returns full content when lastLine is 0', () => {
+    it('should return full content when lastLine is 0', () => {
+      // Arrange
       const content = 'line0\nline1\nline2\nline3\nline4';
+
+      // Act
       const result = extractSegment(content, 0);
 
-      expect(result.content).toBe(content);
-      expect(result.startLine).toBe(0);
-      expect(result.endLine).toBe(5);
+      // Assert
+      expect(result).toEqual({ content, startLine: 0, endLine: 5 });
     });
 
-    it('returns segment with 20-line overlap for lastLine=450 and 900 total lines', () => {
+    it('should return segment with 20-line overlap when lastLine is 450 and total is 900', () => {
+      // Arrange
       const lines = Array.from({ length: 900 }, (_, i) => `line${i}`);
       const content = lines.join('\n');
+
+      // Act
       const result = extractSegment(content, 450);
 
-      expect(result.startLine).toBe(430);
-      expect(result.endLine).toBe(900);
-      const expectedSegment = lines.slice(430).join('\n');
-      expect(result.content).toBe(expectedSegment);
+      // Assert
+      expect(result).toEqual({
+        content: lines.slice(430).join('\n'),
+        startLine: 430,
+        endLine: 900,
+      });
     });
 
-    it('returns full content when lastLine >= totalLines', () => {
+    it('should return full content when lastLine exceeds totalLines', () => {
+      // Arrange
       const content = 'line0\nline1\nline2';
+
+      // Act
       const result = extractSegment(content, 100);
 
-      expect(result.content).toBe(content);
-      expect(result.startLine).toBe(0);
-      expect(result.endLine).toBe(3);
+      // Assert
+      expect(result).toEqual({ content, startLine: 0, endLine: 3 });
     });
 
-    it('returns full content for very short transcript (< OVERLAP_LINES)', () => {
+    it('should return full content when transcript is shorter than OVERLAP_LINES', () => {
+      // Arrange
       const content = 'line0\nline1\nline2';
+
+      // Act
       const result = extractSegment(content, 1);
 
-      expect(result.startLine).toBe(0);
-      expect(result.endLine).toBe(3);
-      expect(result.content).toBe(content);
+      // Assert
+      expect(result).toEqual({ content, startLine: 0, endLine: 3 });
     });
 
-    it('clamps startLine to 0 when lastLine < OVERLAP_LINES', () => {
+    it('should clamp startLine to 0 when lastLine is below OVERLAP_LINES', () => {
+      // Arrange
       const lines = Array.from({ length: 50 }, (_, i) => `line${i}`);
       const content = lines.join('\n');
+
+      // Act
       const result = extractSegment(content, 10);
 
-      expect(result.startLine).toBe(0);
-      expect(result.endLine).toBe(50);
-      expect(result.content).toBe(content);
+      // Assert
+      expect(result).toEqual({ content, startLine: 0, endLine: 50 });
     });
 
-    it('handles lastLine exactly equal to OVERLAP_LINES (20)', () => {
+    it('should clamp startLine to 0 when lastLine equals OVERLAP_LINES exactly', () => {
+      // Arrange
       const lines = Array.from({ length: 50 }, (_, i) => `line${i}`);
       const content = lines.join('\n');
+
+      // Act
       const result = extractSegment(content, 20);
 
-      expect(result.startLine).toBe(0);
-      expect(result.endLine).toBe(50);
-      expect(result.content).toBe(content);
+      // Assert
+      expect(result).toEqual({ content, startLine: 0, endLine: 50 });
     });
 
-    it('handles exactly 20 lines total', () => {
-      const lines = Array.from({ length: 20 }, (_, i) => `line${i}`);
-      const content = lines.join('\n');
-      const result = extractSegment(content, 10);
+    it('should return the full single-line content when transcript is one line', () => {
+      // Act
+      const result = extractSegment('only-one-line', 0);
 
-      expect(result.startLine).toBe(0);
-      expect(result.endLine).toBe(20);
-      expect(result.content).toBe(content);
+      // Assert
+      expect(result).toEqual({ content: 'only-one-line', startLine: 0, endLine: 1 });
     });
 
-    it('handles single-line transcript', () => {
-      const content = 'only-one-line';
-      const result = extractSegment(content, 0);
+    it('should return empty content when transcript is empty', () => {
+      // Act
+      const result = extractSegment('', 0);
 
-      expect(result.startLine).toBe(0);
-      expect(result.endLine).toBe(1);
-      expect(result.content).toBe('only-one-line');
-    });
-
-    it('handles empty string input', () => {
-      const content = '';
-      const result = extractSegment(content, 0);
-
-      expect(result.startLine).toBe(0);
-      expect(result.endLine).toBe(1);
-      expect(result.content).toBe('');
+      // Assert
+      expect(result).toEqual({ content: '', startLine: 0, endLine: 1 });
     });
   });
 
   describe('getLastPosition', () => {
-    let mockServer;
+    let getLastPosition;
+    let mockGet;
 
-    beforeAll(async () => {
-      await new Promise((resolve) => {
-        mockServer = createServer((req, res) => {
-          if (req.url?.includes('/conversations/position') && req.url?.includes('session_id=known-session')) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ session_id: 'known-session', last_line: 450 }));
-          } else if (req.url?.includes('/conversations/position')) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ session_id: 'unknown', last_line: 0 }));
-          } else {
-            res.writeHead(404);
-            res.end();
-          }
-        });
-        mockServer.listen(0, '127.0.0.1', () => {
-          resolve();
-        });
-      });
+    beforeEach(async () => {
+      vi.resetModules();
+      const client = await import('../../../hooks/lib/jarvis-client.js');
+      mockGet = client.get;
+      mockGet.mockReset();
+      const mod = await import('../../../hooks/lib/transcript-state.js');
+      getLastPosition = mod.getLastPosition;
     });
 
-    afterAll(() => {
-      mockServer.close();
+    afterEach(() => {
+      vi.restoreAllMocks();
     });
 
-    it('returns 0 when server is unreachable', async () => {
-      const { getLastPosition } = await import('../../../hooks/lib/transcript-state.js');
+    it('should return last_line when server response is valid', async () => {
+      // Arrange
+      mockGet.mockResolvedValue({ session_id: 'known', last_line: 450 });
 
-      // The module uses the global config which won't point to our mock server,
-      // so a real call to a non-existent server will return 0 via the catch block.
-      // We test this by calling with an invalid env config.
-      const result = await getLastPosition('any-session');
-      // Since the global jarvis-client config points to a non-existent server by default in test,
-      // this should return 0 (the fallback).
-      expect(typeof result).toBe('number');
+      // Act
+      const result = await getLastPosition('known');
+
+      // Assert
+      expect(result).toBe(450);
+      expect(mockGet).toHaveBeenCalledWith('/conversations/position?session_id=known');
+    });
+
+    it('should URL-encode session_id when it contains special characters', async () => {
+      // Arrange
+      mockGet.mockResolvedValue({ last_line: 0 });
+
+      // Act
+      await getLastPosition('a session/with spaces');
+
+      // Assert
+      expect(mockGet).toHaveBeenCalledWith(
+        '/conversations/position?session_id=a%20session%2Fwith%20spaces',
+      );
+    });
+
+    it('should return 0 when response has no last_line field', async () => {
+      // Arrange
+      mockGet.mockResolvedValue({ session_id: 'known' });
+
+      // Act
+      const result = await getLastPosition('known');
+
+      // Assert
       expect(result).toBe(0);
     });
 
-    it('returns last_line when get() returns valid response', async () => {
-      // Test the core logic of getLastPosition by verifying it extracts
-      // last_line from the response object. We simulate this by directly
-      // testing the parsing logic: if resp has last_line as number, return it.
-      const resp = { session_id: 'known-session', last_line: 500 };
-      const lastLine = (resp && typeof resp.last_line === 'number') ? resp.last_line : 0;
-      expect(lastLine).toBe(500);
+    it('should return 0 when response is null', async () => {
+      // Arrange
+      mockGet.mockResolvedValue(null);
+
+      // Act
+      const result = await getLastPosition('known');
+
+      // Assert
+      expect(result).toBe(0);
     });
 
-    it('returns 0 when response has no last_line field', () => {
-      const resp = { session_id: 'known-session' };
-      const lastLine = (resp && typeof resp.last_line === 'number') ? resp.last_line : 0;
-      expect(lastLine).toBe(0);
+    it('should return 0 when last_line is not a number', async () => {
+      // Arrange
+      mockGet.mockResolvedValue({ last_line: 'not-a-number' });
+
+      // Act
+      const result = await getLastPosition('known');
+
+      // Assert
+      expect(result).toBe(0);
     });
 
-    it('returns 0 when response is null', () => {
-      const resp = null;
-      const lastLine = (resp && typeof resp.last_line === 'number') ? resp.last_line : 0;
-      expect(lastLine).toBe(0);
+    it('should return 0 when get() throws', async () => {
+      // Arrange
+      mockGet.mockRejectedValue(new Error('boom'));
+
+      // Act
+      const result = await getLastPosition('known');
+
+      // Assert
+      expect(result).toBe(0);
     });
   });
 });
