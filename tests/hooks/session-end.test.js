@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { spawn } from 'node:child_process';
-import { writeFileSync, unlinkSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { writeFileSync, unlinkSync, mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { runHook } from '../helpers/run-hook.js';
+import { readQueueFiles } from '../helpers/queue-files.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HOOK_PATH = join(__dirname, '../../hooks/session-end.js');
@@ -18,138 +19,135 @@ function makeInput(overrides = {}) {
   });
 }
 
-function runHook(stdinData, env = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn('node', [HOOK_PATH], {
-      env: { ...process.env, ...env },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+describe('session-end hook > with valid transcript file (queue-file contract)', () => {
+  let transcriptFile;
+  let cacheDir;
 
-    let stdout = '';
-    let stderr = '';
+  const MOCK_TRANSCRIPT = '{"type":"human","message":{"role":"user","content":"Fix the bug"}}\n{"type":"assistant","message":{"role":"assistant","content":"I will fix it"}}\n';
 
-    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-
-    child.on('close', (code) => resolve({ stdout, stderr, exitCode: code ?? 0 }));
-    child.on('error', reject);
-
-    child.stdin.write(stdinData);
-    child.stdin.end();
-  });
-}
-
-function readQueueFiles(cacheDir) {
-  const dir = join(cacheDir, 'pending-conversations');
-  return readdirSync(dir)
-    .filter((n) => n.endsWith('.json') && !n.endsWith('.tmp'))
-    .map((name) => ({
-      name,
-      payload: JSON.parse(readFileSync(join(dir, name), 'utf8')),
-    }));
-}
-
-describe('session-end hook', () => {
-  describe('with valid transcript file (queue-file contract)', () => {
-    let transcriptFile;
-    let cacheDir;
-
-    const MOCK_TRANSCRIPT = '{"type":"human","message":{"role":"user","content":"Fix the bug"}}\n{"type":"assistant","message":{"role":"assistant","content":"I will fix it"}}\n';
-
-    beforeAll(() => {
-      const tmpRoot = join(tmpdir(), 'jarvis-test-session-end');
-      mkdirSync(tmpRoot, { recursive: true });
-      transcriptFile = join(tmpRoot, 'transcript.jsonl');
-      writeFileSync(transcriptFile, MOCK_TRANSCRIPT, 'utf8');
-    });
-
-    afterAll(() => {
-      try { unlinkSync(transcriptFile); } catch {}
-    });
-
-    beforeEach(() => {
-      cacheDir = join(tmpdir(), `jarvis-cache-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-      mkdirSync(cacheDir, { recursive: true });
-    });
-
-    afterEach(() => {
-      try { rmSync(cacheDir, { recursive: true, force: true }); } catch {}
-    });
-
-    it('writes a queue file with the filtered transcript', async () => {
-      const input = makeInput({ transcript_path: transcriptFile });
-      const { exitCode } = await runHook(input, {
-        CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
-      });
-
-      expect(exitCode).toBe(0);
-      const files = readQueueFiles(cacheDir);
-      expect(files).toHaveLength(1);
-      expect(files[0].name.startsWith('test-session-123-')).toBe(true);
-      expect(files[0].payload.sessionId).toBe('test-session-123');
-      expect(files[0].payload.filteredTranscript).toBe(MOCK_TRANSCRIPT);
-    });
-
-    it('filters sensitive data before writing to queue', async () => {
-      const sensitiveTranscript = '{"content":"key is sk-abcdefghijklmnopqrstuvwxyz1234567890abcd"}\n';
-      const sensitiveFile = transcriptFile + '.sensitive';
-      writeFileSync(sensitiveFile, sensitiveTranscript, 'utf8');
-
-      const input = makeInput({ transcript_path: sensitiveFile });
-      const { exitCode } = await runHook(input, {
-        CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
-      });
-
-      expect(exitCode).toBe(0);
-      const files = readQueueFiles(cacheDir);
-      expect(files[0].payload.filteredTranscript).toContain('[REDACTED_API_KEY]');
-      expect(files[0].payload.filteredTranscript).not.toContain('sk-abcdefghijklmnopqrstuvwxyz');
-
-      try { unlinkSync(sensitiveFile); } catch {}
-    });
-
-    it('records source "stop" and pluginVersion in queue payload', async () => {
-      const input = makeInput({ transcript_path: transcriptFile });
-      await runHook(input, {
-        CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
-      });
-
-      const files = readQueueFiles(cacheDir);
-      expect(files[0].payload.source).toBe('stop');
-      expect(typeof files[0].payload.pluginVersion).toBe('string');
-      expect(files[0].payload.enqueuedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    });
+  beforeAll(() => {
+    const tmpRoot = join(tmpdir(), 'jarvis-test-session-end');
+    mkdirSync(tmpRoot, { recursive: true });
+    transcriptFile = join(tmpRoot, 'transcript.jsonl');
+    writeFileSync(transcriptFile, MOCK_TRANSCRIPT, 'utf8');
   });
 
-  describe('error handling', () => {
-    it('exits 0 when transcript_path is missing', async () => {
-      const input = makeInput({ transcript_path: undefined });
-      const { exitCode, stderr } = await runHook(input);
-      expect(exitCode).toBe(0);
-      expect(stderr).toContain('jarvis.session-end.skip');
+  afterAll(() => {
+    try { unlinkSync(transcriptFile); } catch {}
+  });
+
+  beforeEach(() => {
+    cacheDir = join(tmpdir(), `jarvis-cache-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(cacheDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    try { rmSync(cacheDir, { recursive: true, force: true }); } catch {}
+  });
+
+  it('should write a queue file with the filtered transcript when transcript is valid', async () => {
+    // Arrange
+    const input = makeInput({ transcript_path: transcriptFile });
+
+    // Act
+    const { exitCode } = await runHook(HOOK_PATH, input, {
+      CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
     });
 
-    it('exits 0 when transcript file does not exist', async () => {
-      const input = makeInput({ transcript_path: '/tmp/nonexistent-file-xyz.jsonl' });
-      const { exitCode, stderr } = await runHook(input);
-      expect(exitCode).toBe(0);
-      expect(stderr).toContain('jarvis.session-end.skip');
+    // Assert
+    expect(exitCode).toBe(0);
+    const files = readQueueFiles(cacheDir);
+    expect(files).toHaveLength(1);
+    expect(files[0].name.startsWith('test-session-123-')).toBe(true);
+    expect(files[0].payload.sessionId).toBe('test-session-123');
+    expect(files[0].payload.filteredTranscript).toBe(MOCK_TRANSCRIPT);
+  });
+
+  it('should redact sensitive data when transcript contains an API key', async () => {
+    // Arrange
+    const sensitiveTranscript = '{"content":"key is sk-abcdefghijklmnopqrstuvwxyz1234567890abcd"}\n';
+    const sensitiveFile = transcriptFile + '.sensitive';
+    writeFileSync(sensitiveFile, sensitiveTranscript, 'utf8');
+    const input = makeInput({ transcript_path: sensitiveFile });
+
+    // Act
+    const { exitCode } = await runHook(HOOK_PATH, input, {
+      CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
     });
 
-    it('exits 0 even with no network access (queue write only)', async () => {
-      const tmpDir = join(tmpdir(), `jarvis-cache-network-${Date.now()}`);
-      mkdirSync(tmpDir, { recursive: true });
-      const tmpFile = join(tmpDir, 'transcript.jsonl');
-      writeFileSync(tmpFile, '{"type":"human"}\n', 'utf8');
+    // Assert
+    expect(exitCode).toBe(0);
+    const files = readQueueFiles(cacheDir);
+    expect(files[0].payload.filteredTranscript).toContain('[REDACTED_API_KEY]');
+    expect(files[0].payload.filteredTranscript).not.toContain('sk-abcdefghijklmnopqrstuvwxyz');
 
-      const input = makeInput({ transcript_path: tmpFile });
-      const { exitCode } = await runHook(input, {
-        CLAUDE_PLUGIN_OPTION_CACHEDIR: tmpDir,
-        CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://localhost:19999',
-      });
-      expect(exitCode).toBe(0);
+    try { unlinkSync(sensitiveFile); } catch {}
+  });
 
-      try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  it('should record source "stop" and pluginVersion when payload is enqueued', async () => {
+    // Arrange
+    const input = makeInput({ transcript_path: transcriptFile });
+
+    // Act
+    await runHook(HOOK_PATH, input, {
+      CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
     });
+
+    // Assert
+    const files = readQueueFiles(cacheDir);
+    expect(files[0].payload).toMatchObject({
+      sessionId: 'test-session-123',
+      source: 'stop',
+      segmentStartLine: null,
+      segmentEndLine: null,
+    });
+    expect(typeof files[0].payload.pluginVersion).toBe('string');
+    expect(files[0].payload.enqueuedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe('session-end hook > error handling', () => {
+  it('should exit 0 with skip log when transcript_path is missing', async () => {
+    // Arrange
+    const input = makeInput({ transcript_path: undefined });
+
+    // Act
+    const { exitCode, stderr } = await runHook(HOOK_PATH, input);
+
+    // Assert
+    expect(exitCode).toBe(0);
+    expect(stderr).toContain('jarvis.session-end.skip');
+  });
+
+  it('should exit 0 with skip log when transcript file does not exist', async () => {
+    // Arrange
+    const input = makeInput({ transcript_path: '/tmp/nonexistent-file-xyz.jsonl' });
+
+    // Act
+    const { exitCode, stderr } = await runHook(HOOK_PATH, input);
+
+    // Assert
+    expect(exitCode).toBe(0);
+    expect(stderr).toContain('jarvis.session-end.skip');
+  });
+
+  it('should exit 0 even when there is no network access (queue write only)', async () => {
+    // Arrange
+    const tmpDir = join(tmpdir(), `jarvis-cache-network-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+    const tmpFile = join(tmpDir, 'transcript.jsonl');
+    writeFileSync(tmpFile, '{"type":"human"}\n', 'utf8');
+    const input = makeInput({ transcript_path: tmpFile });
+
+    // Act
+    const { exitCode } = await runHook(HOOK_PATH, input, {
+      CLAUDE_PLUGIN_OPTION_CACHEDIR: tmpDir,
+      CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://localhost:19999',
+    });
+
+    // Assert
+    expect(exitCode).toBe(0);
+
+    try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
   });
 });

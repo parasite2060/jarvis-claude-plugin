@@ -5,6 +5,7 @@
  */
 
 import { getIdentity } from './lib/jarvis-client.js';
+import { renderContextSection } from './lib/render-context-section.js';
 
 const PREFACE = (
   "Below is your operator's IDENTITY — role, tech stack, working style, active " +
@@ -12,32 +13,9 @@ const PREFACE = (
   "communication level.\n\n"
 );
 
-function readStdin() {
-  return new Promise((resolve) => {
-    let data = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => { data += chunk; });
-    process.stdin.on('end', () => resolve(data));
-  });
-}
-
-const raw = await readStdin();
-
-try {
-  JSON.parse(raw);
-  const identity = await getIdentity();
-  const additionalContext = identity ? `${PREFACE}<identity>\n${identity}\n</identity>` : '';
-
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName: 'SessionStart',
-      additionalContext,
-    },
-  }));
-} catch (err) {
-  const message = err instanceof Error ? err.message : String(err);
-  process.stderr.write(`jarvis.session-start-identity.error: ${message}\n`);
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: '' },
-  }));
-}
+await renderContextSection({
+  tag: 'identity',
+  preface: PREFACE,
+  fetchContent: getIdentity,
+  errorPrefix: 'jarvis.session-start-identity.error',
+});

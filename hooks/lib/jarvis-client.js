@@ -6,19 +6,9 @@
  */
 
 import { parseArgs } from './parse-args.js';
+import { parseExtraHeaders } from './parse-extra-headers.js';
 
 const config = parseArgs();
-
-function parseExtraHeaders(raw) {
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw);
-    return typeof parsed === 'object' && parsed !== null ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
 const EXTRA_HEADERS = parseExtraHeaders(config.extraHeaders);
 
 function buildHeaders() {
@@ -29,10 +19,6 @@ function buildHeaders() {
   };
 }
 
-/**
- * @param {string} path
- * @returns {Promise<unknown>}
- */
 export async function get(path) {
   try {
     const response = await fetch(`${config.serverUrl}${path}`, {
@@ -46,11 +32,6 @@ export async function get(path) {
   }
 }
 
-/**
- * @param {string} path
- * @param {unknown} body
- * @returns {Promise<unknown>}
- */
 export async function post(path, body) {
   try {
     const response = await fetch(`${config.serverUrl}${path}`, {
@@ -65,88 +46,47 @@ export async function post(path, body) {
   }
 }
 
+function unwrapDataField(envelope, field) {
+  const inner = envelope?.data;
+  if (typeof inner !== 'object' || inner === null) return null;
+  if (!(field in inner)) return null;
+  return inner[field];
+}
+
+async function getMemoryDocument(endpoint) {
+  const envelope = await get(endpoint);
+  if (envelope == null) return null;
+  const content = unwrapDataField(envelope, 'content');
+  return content == null ? null : String(content);
+}
+
 /**
  * Fetch assembled memory context for session injection.
- * @returns {Promise<string | null>}
  */
 export async function getContext() {
-  const data = await get('/memory/context');
-  if (data == null) return null;
-  if (typeof data === 'object' && data !== null && 'data' in data) {
-    const inner = data.data;
-    if (typeof inner === 'object' && inner !== null && 'context' in inner) {
-      return String(inner.context);
-    }
-  }
-  return null;
+  const envelope = await get('/memory/context');
+  if (envelope == null) return null;
+  const context = unwrapDataField(envelope, 'context');
+  return context == null ? null : String(context);
 }
 
-/**
- * Fetch SOUL.md content from /memory/soul.
- * @returns {Promise<string | null>}
- */
-export async function getSoul() {
-  const data = await get('/memory/soul');
-  if (data == null) return null;
-  if (typeof data === 'object' && 'data' in data) {
-    const inner = data.data;
-    if (typeof inner === 'object' && inner !== null && 'content' in inner) {
-      return String(inner.content);
-    }
-  }
-  return null;
-}
-
-/**
- * Fetch IDENTITY.md content from /memory/identity.
- * @returns {Promise<string | null>}
- */
-export async function getIdentity() {
-  const data = await get('/memory/identity');
-  if (data == null) return null;
-  if (typeof data === 'object' && 'data' in data) {
-    const inner = data.data;
-    if (typeof inner === 'object' && inner !== null && 'content' in inner) {
-      return String(inner.content);
-    }
-  }
-  return null;
-}
-
-/**
- * Fetch MEMORY.md content from /memory/memory.
- * @returns {Promise<string | null>}
- */
-export async function getMemory() {
-  const data = await get('/memory/memory');
-  if (data == null) return null;
-  if (typeof data === 'object' && 'data' in data) {
-    const inner = data.data;
-    if (typeof inner === 'object' && inner !== null && 'content' in inner) {
-      return String(inner.content);
-    }
-  }
-  return null;
-}
+export const getSoul     = () => getMemoryDocument('/memory/soul');
+export const getIdentity = () => getMemoryDocument('/memory/identity');
+export const getMemory   = () => getMemoryDocument('/memory/memory');
 
 /**
  * Fetch the file manifest from /memory/files/manifest.
  * Returns array of { path, updatedAt } sorted by manifest order.
- * @returns {Promise<Array<{path: string, updatedAt: string}>>}
  */
 export async function getFileManifest() {
-  const data = await get('/memory/files/manifest');
-  if (data == null) return [];
-  if (typeof data === 'object' && 'data' in data) {
-    const inner = data.data;
-    if (typeof inner === 'object' && inner !== null && Array.isArray(inner.files)) {
-      return inner.files.map((f) => ({
-        path: String(f.path),
-        updatedAt: String(f.updatedAt),
-      }));
-    }
-  }
-  return [];
+  const envelope = await get('/memory/files/manifest');
+  if (envelope == null) return [];
+  const files = unwrapDataField(envelope, 'files');
+  if (!Array.isArray(files)) return [];
+  return files.map((f) => ({
+    path: String(f.path),
+    updatedAt: String(f.updatedAt),
+  }));
 }
 
 export { config };

@@ -5,23 +5,23 @@
  *   Without this check, plugin upgrades leave the old worker running indefinitely
  *   because /health succeeds and the PID is alive.
  * Never throws — all errors caught internally.
+ *
+ * Logging: this module runs in the *hook* process and writes to stderr, which
+ * Claude Code captures and surfaces in its hook diagnostics. The worker process
+ * has its own structured log at <cacheDir>/logs/worker.log. They are kept
+ * separate by design — they reflect different lifecycles and audiences.
  */
 
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createConnection } from 'node:net';
 import { config } from './jarvis-client.js';
+import { resolveHome } from '../../lib/paths.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = join(__dirname, '..', '..');
-
-function resolveHome(p) {
-  if (p.startsWith('~')) return join(homedir(), p.slice(1));
-  return p;
-}
 
 function readPluginVersion() {
   try {

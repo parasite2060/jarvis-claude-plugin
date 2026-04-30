@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import http from 'node:http';
 import { mkdtempSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -9,7 +9,6 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER_SCRIPT = join(__dirname, '..', '..', 'worker', 'server.js');
 
-// Each test gets a unique port via incrementing counter to avoid conflicts
 let portCounter = 41000;
 
 function request(port, method, path) {
@@ -70,8 +69,6 @@ function killAndWait(child, timeout = 3000) {
       setTimeout(resolve, 200);
     }, timeout);
     child.on('exit', () => { clearTimeout(timer); resolve(); });
-    // On Windows, SIGTERM doesn't trigger signal handlers in child Node processes.
-    // Use process.kill with SIGINT which sends CTRL_C_EVENT on Windows.
     try {
       process.kill(child.pid, 'SIGINT');
     } catch {
@@ -91,12 +88,10 @@ describe('worker/server', () => {
   });
 
   afterEach(async () => {
-    // Kill all spawned children
     for (const child of children) {
       await killAndWait(child);
     }
     children = [];
-    // Wait for port release on Windows
     await new Promise(resolve => setTimeout(resolve, 300));
     try { rmSync(cacheDir, { recursive: true, force: true }); } catch { /* ignore */ }
   });
@@ -108,98 +103,155 @@ describe('worker/server', () => {
     return child;
   }
 
-  it('GET /health returns correct structure with status ok', async () => {
+  it('should return a populated payload with status ok when GET /health is called', async () => {
+    // Arrange
     await startWorker();
 
+    // Act
     const res = await request(workerPort, 'GET', '/health');
 
+    // Assert
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe('ok');
-    expect(res.body).toHaveProperty('lastSync');
-    expect(res.body).toHaveProperty('lastManifestHash');
-    expect(res.body).toHaveProperty('fileCount');
-    expect(res.body).toHaveProperty('cacheDir', cacheDir);
+    expect(res.body).toMatchObject({
+      status: 'ok',
+      cacheDir,
+      lastManifestHash: null,
+      fileCount: 0,
+    });
     expect(typeof res.body.version).toBe('string');
-    expect(res.body.version).not.toBe('');
-    expect(res.body).toHaveProperty('pluginRoot');
-    expect(res.body).toHaveProperty('lastDrain');
-    expect(res.body).toHaveProperty('lastDrainResult');
+    expect(res.body.version.length).toBeGreaterThan(0);
+    expect(typeof res.body.pluginRoot).toBe('string');
+    expect(res.body.lastActivityAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(res.body.idleShutdownAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
-  it('POST /sync triggers sync and returns result', async () => {
+  it('should write a startup log line to <cacheDir>/logs/worker.log when worker boots', async () => {
+    // Arrange
     await startWorker();
 
+    // Act
+    const logFile = join(cacheDir, 'logs', 'worker.log');
+    const contents = readFileSync(logFile, 'utf8');
+
+    // Assert
+    expect(existsSync(logFile)).toBe(true);
+    expect(contents).toContain('jarvis.worker.started');
+  });
+
+  it('should exit cleanly when idle window elapses with no successful drains', async () => {
+    // Arrange
+    const child = spawnWorker(cacheDir, workerPort, {
+      CLAUDE_PLUGIN_OPTION_IDLEMS: '500',
+      CLAUDE_PLUGIN_OPTION_IDLECHECKMS: '200',
+    });
+    children.push(child);
+    await waitForServer(workerPort);
+
+    // Act
+    const exitCode = await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve('timeout'), 4000);
+      if (child.exitCode !== null) {
+        clearTimeout(timer);
+        resolve(child.exitCode);
+        return;
+      }
+      child.on('exit', (code) => { clearTimeout(timer); resolve(code); });
+    });
+
+    // Assert
+    expect(exitCode).toBe(0);
+  }, 8000);
+
+  it('should trigger sync and return result when POST /sync is called', async () => {
+    // Arrange
+    await startWorker();
+
+    // Act
     const res = await request(workerPort, 'POST', '/sync');
 
+    // Assert
     expect(res.status).toBe(200);
     expect(res.body.synced).toBe(false);
     expect(res.body.reason).toBe('error');
   });
 
-  it('writes PID file on startup', async () => {
+  it('should write the PID file when worker starts', async () => {
+    // Arrange
     const child = await startWorker();
 
+    // Act
     const pidFile = join(cacheDir, '.worker.pid');
-    expect(existsSync(pidFile)).toBe(true);
-
     const pid = parseInt(readFileSync(pidFile, 'utf8').trim(), 10);
+
+    // Assert
+    expect(existsSync(pidFile)).toBe(true);
     expect(pid).toBe(child.pid);
   });
 
-  it('cleans up PID file on shutdown (Unix) or exits cleanly (Windows)', async () => {
+  it('should clean up the PID file when worker shuts down (Unix) or exit cleanly (Windows)', async () => {
+    // Arrange
     const child = await startWorker();
-
     const pidFile = join(cacheDir, '.worker.pid');
     expect(existsSync(pidFile)).toBe(true);
 
+    // Act
     await killAndWait(child);
-    // Remove from children list since already killed
     children = children.filter(c => c !== child);
     await new Promise(resolve => setTimeout(resolve, 300));
 
+    // Assert
     if (process.platform !== 'win32') {
       expect(existsSync(pidFile)).toBe(false);
     }
-    // Process exited
     expect(child.exitCode).not.toBeNull();
   });
 
-  it('EADDRINUSE is handled gracefully (exits 0)', async () => {
+  it('should exit 0 when EADDRINUSE occurs on startup', async () => {
+    // Arrange
     const blocker = http.createServer((req, res) => { res.end('ok'); });
     await new Promise(resolve => blocker.listen(workerPort, resolve));
 
     try {
+      // Act
       const child = spawnWorker(cacheDir, workerPort);
       children.push(child);
       const exitCode = await new Promise(resolve => child.on('exit', resolve));
+
+      // Assert
       expect(exitCode).toBe(0);
     } finally {
       await new Promise(resolve => blocker.close(resolve));
     }
   });
 
-  it('returns 404 for unknown routes', async () => {
+  it('should return 404 when an unknown route is requested', async () => {
+    // Arrange
     await startWorker();
 
+    // Act
     const res = await request(workerPort, 'GET', '/unknown');
 
+    // Assert
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Not found');
   });
 
-  it('exits with 1 when API key is missing', async () => {
+  it('should exit 1 when CLAUDE_PLUGIN_OPTION_APIKEY is missing', async () => {
+    // Arrange
     const env = {
       CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://127.0.0.1:19999',
       CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
       CLAUDE_PLUGIN_OPTION_WORKERPORT: String(workerPort),
     };
-    // Create a clean env without apiKey
     const cleanEnv = { ...process.env, ...env };
     delete cleanEnv.CLAUDE_PLUGIN_OPTION_APIKEY;
 
+    // Act
     const child = spawn('node', [SERVER_SCRIPT], { env: cleanEnv, stdio: 'pipe' });
     children.push(child);
     const exitCode = await new Promise(resolve => child.on('exit', resolve));
+
+    // Assert
     expect(exitCode).toBe(1);
   });
 });

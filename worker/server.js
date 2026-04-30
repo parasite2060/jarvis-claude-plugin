@@ -1,188 +1,181 @@
 import http from 'node:http';
-import { mkdirSync, writeFileSync, unlinkSync, readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { homedir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { syncFiles } from './file-sync.js';
 import { drainConversations } from './conversation-drain.js';
+import { createLogger } from './lib/logger.js';
+import { loadWorkerConfig } from './lib/config.js';
 
-function resolveHome(p) {
-  if (p.startsWith('~')) return join(homedir(), p.slice(1));
-  return p;
-}
+const config = loadWorkerConfig();
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const PLUGIN_ROOT = join(__dirname, '..');
+mkdirSync(config.cacheDir, { recursive: true });
 
-function readPluginVersion() {
-  try {
-    const pkg = JSON.parse(readFileSync(join(PLUGIN_ROOT, 'package.json'), 'utf8'));
-    return typeof pkg.version === 'string' ? pkg.version : 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
+const PID_FILE = join(config.cacheDir, '.worker.pid');
+const logger = createLogger({ dir: join(config.cacheDir, 'logs') });
 
-const PLUGIN_VERSION = readPluginVersion();
-const SERVER_URL = process.env.CLAUDE_PLUGIN_OPTION_SERVERURL || 'http://localhost:8000';
-const API_KEY = process.env.CLAUDE_PLUGIN_OPTION_APIKEY;
-const CACHE_DIR = resolveHome(process.env.CLAUDE_PLUGIN_OPTION_CACHEDIR || '~/.jarvis-cache/ai-memory');
-const WORKER_PORT = Number(process.env.CLAUDE_PLUGIN_OPTION_WORKERPORT) || 37777;
-const SYNC_INTERVAL_MS = 5 * 60 * 1000;
-const DRAIN_INTERVAL_MS = 30 * 1000;
-
-function parseExtraHeaders() {
-  const raw = process.env.CLAUDE_PLUGIN_OPTION_EXTRAHEADERS || '';
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw);
-    return typeof parsed === 'object' && parsed !== null ? parsed : {};
-  } catch { return {}; }
-}
-const EXTRA_HEADERS = parseExtraHeaders();
-
-if (!API_KEY) {
-  console.error('jarvis.worker.startup-failed: CLAUDE_PLUGIN_OPTION_apiKey is required');
+if (!config.apiKey) {
+  logger.error('jarvis.worker.startup-failed: CLAUDE_PLUGIN_OPTION_apiKey is required');
   process.exit(1);
 }
 
-mkdirSync(CACHE_DIR, { recursive: true });
-
-const PID_FILE = join(CACHE_DIR, '.worker.pid');
-
-let lastSync = null;
-let lastManifestHash = null;
-let fileCount = 0;
-let syncInProgress = false;
-
-let lastDrain = null;
-let lastDrainResult = null;
-let drainInProgress = false;
-
-async function runSync() {
-  if (syncInProgress) return;
-  syncInProgress = true;
-  try {
-    const result = await syncFiles(SERVER_URL, API_KEY, CACHE_DIR, EXTRA_HEADERS);
-    if (result.synced) {
-      lastSync = new Date().toISOString();
-      lastManifestHash = result.manifestHash;
-      fileCount = result.fileCount ?? fileCount;
-    } else if (result.reason === 'no-changes') {
-      lastSync = new Date().toISOString();
-    }
-    return result;
-  } finally {
-    syncInProgress = false;
-  }
+function errMsg(err) {
+  return err instanceof Error ? err.message : String(err);
 }
 
-async function runDrain() {
-  if (drainInProgress) return;
-  drainInProgress = true;
-  try {
-    const result = await drainConversations({
-      serverUrl: SERVER_URL,
-      apiKey: API_KEY,
-      cacheDir: CACHE_DIR,
-      extraHeaders: EXTRA_HEADERS,
-    });
-    lastDrain = new Date().toISOString();
-    lastDrainResult = result;
-    return result;
-  } finally {
-    drainInProgress = false;
-  }
+// Module-level mutable state for periodic background work and the /health view.
+// Use a monotonic clock for idle math so NTP corrections, laptop sleep, or
+// daylight-saving jumps don't trigger a spurious shutdown (or delay one).
+// Date.now() is kept only for the user-visible /health timestamps.
+const state = {
+  lastSync: null,
+  lastManifestHash: null,
+  fileCount: 0,
+  lastDrain: null,
+  lastDrainResult: null,
+  lastActivityAtMono: performance.now(),
+  lastActivityAtWall: Date.now(),
+};
+
+function recordActivity() {
+  state.lastActivityAtMono = performance.now();
+  state.lastActivityAtWall = Date.now();
 }
 
-const server = http.createServer(async (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
+// Single-flight guard: skips re-entry if the same task is still running.
+function singleFlight(fn) {
+  let inProgress = false;
+  return async function guarded() {
+    if (inProgress) return;
+    inProgress = true;
+    try { return await fn(); } finally { inProgress = false; }
+  };
+}
 
-  if (req.method === 'GET' && req.url === '/health') {
-    res.writeHead(200);
-    res.end(JSON.stringify({
-      status: 'ok',
-      version: PLUGIN_VERSION,
-      pluginRoot: PLUGIN_ROOT,
-      lastSync,
-      lastManifestHash,
-      fileCount,
-      lastDrain,
-      lastDrainResult,
-      cacheDir: CACHE_DIR,
-    }));
-    return;
+const runSync = singleFlight(async function runSyncBody() {
+  const result = await syncFiles(config.serverUrl, config.apiKey, config.cacheDir, config.extraHeaders, logger);
+  if (result.synced) {
+    state.lastSync = new Date().toISOString();
+    state.lastManifestHash = result.manifestHash;
+    state.fileCount = result.fileCount ?? state.fileCount;
+  } else if (result.reason === 'no-changes') {
+    state.lastSync = new Date().toISOString();
   }
-
-  if (req.method === 'POST' && req.url === '/sync') {
-    const result = await runSync();
-    res.writeHead(200);
-    res.end(JSON.stringify(result));
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/drain') {
-    const result = await runDrain();
-    res.writeHead(200);
-    res.end(JSON.stringify(result ?? { status: 'in-progress' }));
-    return;
-  }
-
-  res.writeHead(404);
-  res.end(JSON.stringify({ error: 'Not found' }));
+  return result;
 });
+
+const runDrain = singleFlight(async function runDrainBody() {
+  const result = await drainConversations({
+    serverUrl: config.serverUrl,
+    apiKey: config.apiKey,
+    cacheDir: config.cacheDir,
+    extraHeaders: config.extraHeaders,
+    logger,
+  });
+  state.lastDrain = new Date().toISOString();
+  state.lastDrainResult = result;
+  if (result?.sent > 0) recordActivity();
+  return result;
+});
+
+function buildHealthPayload() {
+  return {
+    status: 'ok',
+    version: config.pluginVersion,
+    pluginRoot: config.pluginRoot,
+    lastSync: state.lastSync,
+    lastManifestHash: state.lastManifestHash,
+    fileCount: state.fileCount,
+    lastDrain: state.lastDrain,
+    lastDrainResult: state.lastDrainResult,
+    lastActivityAt: new Date(state.lastActivityAtWall).toISOString(),
+    idleShutdownAt: new Date(state.lastActivityAtWall + config.idleTimeoutMs).toISOString(),
+    cacheDir: config.cacheDir,
+  };
+}
+
+function sendJson(res, status, body) {
+  res.writeHead(status);
+  res.end(JSON.stringify(body));
+}
+
+const ROUTES = {
+  'GET /health': async () => buildHealthPayload(),
+  'POST /sync':  async () => runSync(),
+  'POST /drain': async () => (await runDrain()) ?? { status: 'in-progress' },
+};
+
+async function dispatchRequest(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  const handler = ROUTES[`${req.method} ${req.url}`];
+  if (!handler) return sendJson(res, 404, { error: 'Not found' });
+  return sendJson(res, 200, await handler());
+}
+
+const server = http.createServer(dispatchRequest);
 
 function writePid() {
   try {
     writeFileSync(PID_FILE, String(process.pid), 'utf8');
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`jarvis.worker.pid-write-failed: ${msg}`);
+    logger.error(`jarvis.worker.pid-write-failed: ${errMsg(err)}`);
   }
 }
 
 function cleanupPid() {
-  try {
-    unlinkSync(PID_FILE);
-  } catch {
-    // best-effort
-  }
+  try { unlinkSync(PID_FILE); } catch { /* ignore */ }
 }
 
-let syncTimer = null;
-let drainTimer = null;
+const timers = { sync: null, drain: null, idle: null };
+let shuttingDown = false;
 
 function shutdown() {
-  if (syncTimer) clearInterval(syncTimer);
-  if (drainTimer) clearInterval(drainTimer);
+  if (shuttingDown) return;
+  shuttingDown = true;
+  for (const timer of Object.values(timers)) {
+    if (timer) clearInterval(timer);
+  }
   server.close(() => {});
   cleanupPid();
   process.exit(0);
 }
 
+function checkIdle() {
+  if (shuttingDown) return;
+  const idleMs = performance.now() - state.lastActivityAtMono;
+  if (idleMs <= config.idleTimeoutMs) return;
+  logger.info(`jarvis.worker.idle-shutdown: lastActivityAt=${new Date(state.lastActivityAtWall).toISOString()} thresholdMs=${config.idleTimeoutMs}`);
+  shutdown();
+}
+
+// Wraps async work so an unhandled rejection from the background timers
+// does not crash the worker (Node ≥15 default).
+function runGuarded(name, fn) {
+  fn().catch((err) => logger.error(`jarvis.worker.${name}-error: ${errMsg(err)}`));
+}
+
+function scheduleEvery(intervalMs, name, fn) {
+  return setInterval(() => runGuarded(name, fn), intervalMs);
+}
+
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
-process.on('exit', () => { cleanupPid(); });
+process.on('exit', cleanupPid);
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`jarvis.worker.port-in-use: port ${WORKER_PORT} already in use, another worker is running`);
+    logger.error(`jarvis.worker.port-in-use: port ${config.workerPort} already in use, another worker is running`);
     process.exit(0);
   }
-  console.error(`jarvis.worker.server-error: ${err.message}`);
+  logger.error(`jarvis.worker.server-error: ${err.message}`);
 });
 
-server.listen(WORKER_PORT, () => {
+server.listen(config.workerPort, () => {
   writePid();
-  console.error(`jarvis.worker.started: version=${PLUGIN_VERSION} port=${WORKER_PORT} cacheDir=${CACHE_DIR}`);
-  // Wrap setInterval callbacks so an unhandled rejection from runSync/runDrain
-  // does not crash the worker (Node ≥15 default).
-  runSync().catch((err) => console.error(`jarvis.worker.sync-error: ${err.message}`));
-  runDrain().catch((err) => console.error(`jarvis.worker.drain-error: ${err.message}`));
-  syncTimer = setInterval(() => {
-    runSync().catch((err) => console.error(`jarvis.worker.sync-error: ${err.message}`));
-  }, SYNC_INTERVAL_MS);
-  drainTimer = setInterval(() => {
-    runDrain().catch((err) => console.error(`jarvis.worker.drain-error: ${err.message}`));
-  }, DRAIN_INTERVAL_MS);
+  logger.info(`jarvis.worker.started: version=${config.pluginVersion} port=${config.workerPort} cacheDir=${config.cacheDir} idleMs=${config.idleTimeoutMs}`);
+  runGuarded('sync', runSync);
+  runGuarded('drain', runDrain);
+  timers.sync = scheduleEvery(config.syncIntervalMs, 'sync', runSync);
+  timers.drain = scheduleEvery(config.drainIntervalMs, 'drain', runDrain);
+  timers.idle = setInterval(checkIdle, config.idleCheckIntervalMs);
 });

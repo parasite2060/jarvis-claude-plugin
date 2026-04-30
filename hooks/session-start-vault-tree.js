@@ -5,12 +5,14 @@
  * ALWAYS exits 0. Never blocks Claude Code.
  */
 
-import { getFileManifest, config } from './lib/jarvis-client.js';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { getFileManifest, config } from './lib/jarvis-client.js';
+import { readStdin } from './lib/read-stdin.js';
+import { resolveHome } from '../lib/paths.js';
 
 const HOT_FOLDERS = ['concepts', 'decisions', 'lessons', 'patterns', 'projects', 'references'];
 const RECENT_LIMIT = 5;
+const HOOK_EVENT_NAME = 'SessionStart';
 
 const PREFACE = (
   "Below is the operator's vault map. Read `<folder>/_index.md` for full file " +
@@ -18,17 +20,7 @@ const PREFACE = (
 );
 
 function resolveCacheDir() {
-  const dir = config.cacheDir || '~/.jarvis-cache/ai-memory';
-  return dir.startsWith('~') ? join(homedir(), dir.slice(1)) : dir;
-}
-
-function readStdin() {
-  return new Promise((resolve) => {
-    let data = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => { data += chunk; });
-    process.stdin.on('end', () => resolve(data));
-  });
+  return resolveHome(config.cacheDir || '~/.jarvis-cache/ai-memory');
 }
 
 /**
@@ -52,6 +44,25 @@ function groupByFolder(files) {
   return groups;
 }
 
+function renderHotFolder(folder, files, folderConnector, childPrefix) {
+  const recent = [...files]
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, RECENT_LIMIT);
+  const lines = [`${folderConnector}${folder}/      (${files.length} files)`];
+  for (let j = 0; j < recent.length; j++) {
+    const isLastFile = j === recent.length - 1;
+    const fileConnector = isLastFile ? '└── ' : '├── ';
+    const filename = recent[j].path.split('/').pop();
+    lines.push(`${childPrefix}${fileConnector}${filename}`);
+  }
+  return lines;
+}
+
+function renderColdFolder(folder, files, folderConnector) {
+  const noun = files.length === 1 ? 'file' : 'files';
+  return [`${folderConnector}${folder}/   (${files.length} ${noun} — read _index.md)`];
+}
+
 function renderTree(groups) {
   const folders = Object.keys(groups).filter((k) => k !== '_root').sort();
   const lines = ['Vault tree (5 most-recent per hot folder; read <folder>/_index.md for the full catalog):'];
@@ -61,25 +72,8 @@ function renderTree(groups) {
     const isLastFolder = i === folders.length - 1;
     const folderConnector = isLastFolder ? '└── ' : '├── ';
     const childPrefix = isLastFolder ? '    ' : '│   ';
-    const files = groups[folder];
-    const count = files.length;
-
-    if (HOT_FOLDERS.includes(folder)) {
-      // Sort by mtime desc, take top 5
-      const recent = [...files]
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-        .slice(0, RECENT_LIMIT);
-      lines.push(`${folderConnector}${folder}/      (${count} files)`);
-      for (let j = 0; j < recent.length; j++) {
-        const isLastFile = j === recent.length - 1;
-        const fileConnector = isLastFile ? '└── ' : '├── ';
-        const filename = recent[j].path.split('/').pop();
-        lines.push(`${childPrefix}${fileConnector}${filename}`);
-      }
-    } else {
-      // Cold folder: count + hint
-      lines.push(`${folderConnector}${folder}/   (${count} file${count === 1 ? '' : 's'} — read _index.md)`);
-    }
+    const renderer = HOT_FOLDERS.includes(folder) ? renderHotFolder : renderColdFolder;
+    lines.push(...renderer(folder, groups[folder], folderConnector, childPrefix));
   }
 
   if (groups._root.length > 0) {
@@ -91,30 +85,33 @@ function renderTree(groups) {
   return lines.join('\n');
 }
 
+function buildBody(cacheDir, files) {
+  let body = `JARVIS_CACHE_DIR: ${cacheDir}\n`;
+  if (files.length > 0) {
+    body += `\n${PREFACE}${renderTree(groupByFolder(files))}`;
+  }
+  return body;
+}
+
+function emitContext(additionalContext) {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: { hookEventName: HOOK_EVENT_NAME, additionalContext },
+  }));
+}
+
+async function main(raw) {
+  JSON.parse(raw);
+  const files = await getFileManifest();
+  const body = buildBody(resolveCacheDir(), files);
+  emitContext(`<vault>\n${body}\n</vault>`);
+}
+
 const raw = await readStdin();
 
 try {
-  JSON.parse(raw);
-  const cacheDir = resolveCacheDir();
-  const files = await getFileManifest();
-
-  let body = `JARVIS_CACHE_DIR: ${cacheDir}\n`;
-  if (files.length > 0) {
-    const groups = groupByFolder(files);
-    body += `\n${PREFACE}${renderTree(groups)}`;
-  }
-  const additionalContext = `<vault>\n${body}\n</vault>`;
-
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName: 'SessionStart',
-      additionalContext,
-    },
-  }));
+  await main(raw);
 } catch (err) {
   const message = err instanceof Error ? err.message : String(err);
   process.stderr.write(`jarvis.session-start-vault-tree.error: ${message}\n`);
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: '' },
-  }));
+  emitContext('');
 }

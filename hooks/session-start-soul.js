@@ -5,6 +5,7 @@
  */
 
 import { getSoul } from './lib/jarvis-client.js';
+import { renderContextSection } from './lib/render-context-section.js';
 
 const PREFACE = (
   "Below is your operator's SOUL — worldview, decision principles, opinions, " +
@@ -12,32 +13,9 @@ const PREFACE = (
   "reasoning style. Match the persona; don't summarize it back at the user.\n\n"
 );
 
-function readStdin() {
-  return new Promise((resolve) => {
-    let data = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => { data += chunk; });
-    process.stdin.on('end', () => resolve(data));
-  });
-}
-
-const raw = await readStdin();
-
-try {
-  JSON.parse(raw);
-  const soul = await getSoul();
-  const additionalContext = soul ? `${PREFACE}<soul>\n${soul}\n</soul>` : '';
-
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName: 'SessionStart',
-      additionalContext,
-    },
-  }));
-} catch (err) {
-  const message = err instanceof Error ? err.message : String(err);
-  process.stderr.write(`jarvis.session-start-soul.error: ${message}\n`);
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: '' },
-  }));
-}
+await renderContextSection({
+  tag: 'soul',
+  preface: PREFACE,
+  fetchContent: getSoul,
+  errorPrefix: 'jarvis.session-start-soul.error',
+});

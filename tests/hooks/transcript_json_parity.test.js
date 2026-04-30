@@ -12,114 +12,91 @@ import { SECRET_PATTERNS } from '../../hooks/lib/transcript.js';
 
 const PATTERNS_JSON_PATH = join(
   dirname(fileURLToPath(import.meta.url)),
-  '../../hooks/lib/secret_patterns.json'
+  '../../hooks/lib/secret_patterns.json',
 );
 
 const data = JSON.parse(readFileSync(PATTERNS_JSON_PATH, 'utf8'));
 
+const PATTERN_ROWS = data.patterns.map((entry, index) => ({
+  name: entry.name,
+  entry,
+  compiled: SECRET_PATTERNS[index],
+}));
+
 describe('secret_patterns.json structure', () => {
-  it('has version 1 and a non-empty patterns array', () => {
+  it('should have version 1 and a non-empty patterns array', () => {
+    // Act & Assert
     expect(data.version).toBe(1);
     expect(Array.isArray(data.patterns)).toBe(true);
     expect(data.patterns.length).toBeGreaterThan(0);
   });
 
-  it('every pattern has the required fields', () => {
-    for (const entry of data.patterns) {
-      expect(entry).toHaveProperty('name');
-      expect(entry).toHaveProperty('regex');
-      expect(entry).toHaveProperty('flags');
-      expect(entry).toHaveProperty('replacement_type');
-      expect(['literal', 'backref', 'function']).toContain(entry.replacement_type);
-
-      if (entry.replacement_type === 'function') {
-        expect(entry).toHaveProperty('function');
-      } else {
-        expect(entry).toHaveProperty('replacement');
-      }
+  it.each(data.patterns)('should have required fields when entry is named "$name"', (entry) => {
+    // Act & Assert
+    expect(entry).toHaveProperty('name');
+    expect(entry).toHaveProperty('regex');
+    expect(entry).toHaveProperty('flags');
+    expect(['literal', 'backref', 'function']).toContain(entry.replacement_type);
+    if (entry.replacement_type === 'function') {
+      expect(entry).toHaveProperty('function');
+    } else {
+      expect(entry).toHaveProperty('replacement');
     }
   });
 });
 
 describe('pattern count and order parity', () => {
-  it('loaded pattern count matches JSON', () => {
+  it('should match JSON pattern count when SECRET_PATTERNS is loaded', () => {
+    // Act & Assert
     expect(SECRET_PATTERNS.length).toBe(data.patterns.length);
   });
 
-  it('pattern names match JSON in order', () => {
-    const jsonNames = data.patterns.map((e) => e.name);
-    const loadedNames = SECRET_PATTERNS.map((p) => p.name);
-    expect(loadedNames).toEqual(jsonNames);
+  it('should match JSON pattern names in order when SECRET_PATTERNS is loaded', () => {
+    // Act & Assert
+    expect(SECRET_PATTERNS.map((p) => p.name)).toEqual(data.patterns.map((e) => e.name));
   });
 });
 
 describe('regex source parity', () => {
-  it('each compiled regex source equals the JSON regex string', () => {
-    for (let i = 0; i < SECRET_PATTERNS.length; i += 1) {
-      const entry = data.patterns[i];
-      const compiled = SECRET_PATTERNS[i].regex;
-      expect(compiled.source).toBe(new RegExp(entry.regex).source);
-    }
+  it.each(PATTERN_ROWS)('should match JSON regex source when pattern is "$name"', ({ entry, compiled }) => {
+    // Act & Assert
+    expect(compiled.regex.source).toBe(new RegExp(entry.regex).source);
   });
 
-  it('compiled flags include every JSON flag character (excluding "g")', () => {
-    for (let i = 0; i < SECRET_PATTERNS.length; i += 1) {
-      const entry = data.patterns[i];
-      const compiled = SECRET_PATTERNS[i].regex;
-      for (const flag of entry.flags) {
-        expect(compiled.flags).toContain(flag);
-      }
+  it.each(PATTERN_ROWS)('should include every JSON flag (excluding "g") when pattern is "$name"', ({ entry, compiled }) => {
+    // Act & Assert
+    for (const flag of entry.flags) {
+      expect(compiled.regex.flags).toContain(flag);
     }
   });
 });
 
 describe('replacement parity', () => {
-  it('literal replacements equal JSON', () => {
-    for (let i = 0; i < SECRET_PATTERNS.length; i += 1) {
-      const entry = data.patterns[i];
-      if (entry.replacement_type === 'literal') {
-        expect(SECRET_PATTERNS[i].replacement).toBe(entry.replacement);
-      }
-    }
-  });
-
-  it('backref replacements equal JSON (JS uses $1 syntax natively)', () => {
-    for (let i = 0; i < SECRET_PATTERNS.length; i += 1) {
-      const entry = data.patterns[i];
-      if (entry.replacement_type === 'backref') {
-        expect(SECRET_PATTERNS[i].replacement).toBe(entry.replacement);
-      }
-    }
-  });
-
-  it('function replacements resolve to callables', () => {
-    for (let i = 0; i < SECRET_PATTERNS.length; i += 1) {
-      const entry = data.patterns[i];
-      if (entry.replacement_type === 'function') {
-        expect(typeof SECRET_PATTERNS[i].replacement).toBe('function');
-      }
+  it.each(PATTERN_ROWS)('should resolve replacement matching JSON when pattern is "$name"', ({ entry, compiled }) => {
+    // Act & Assert
+    if (entry.replacement_type === 'literal' || entry.replacement_type === 'backref') {
+      expect(compiled.replacement).toBe(entry.replacement);
+    } else {
+      expect(typeof compiled.replacement).toBe('function');
     }
   });
 });
 
 describe('portability constraints', () => {
-  it('no Python-only named groups (?P<...> or (?P=...)', () => {
-    for (const entry of data.patterns) {
-      expect(entry.regex).not.toContain('(?P<');
-      expect(entry.regex).not.toContain('(?P=');
-    }
+  it.each(data.patterns)('should not use Python-only named groups when entry is "$name"', (entry) => {
+    // Act & Assert
+    expect(entry.regex).not.toContain('(?P<');
+    expect(entry.regex).not.toContain('(?P=');
   });
 
-  it('no inline flag syntax', () => {
-    for (const entry of data.patterns) {
-      expect(/\(\?[ismx]+\)/.test(entry.regex)).toBe(false);
-    }
+  it.each(data.patterns)('should not use inline flag syntax when entry is "$name"', (entry) => {
+    // Act & Assert
+    expect(/\(\?[ismx]+\)/.test(entry.regex)).toBe(false);
   });
 
-  it('no lookbehind assertions', () => {
-    for (const entry of data.patterns) {
-      expect(entry.regex).not.toContain('(?<=');
-      expect(entry.regex).not.toContain('(?<!');
-    }
+  it.each(data.patterns)('should not use lookbehind assertions when entry is "$name"', (entry) => {
+    // Act & Assert
+    expect(entry.regex).not.toContain('(?<=');
+    expect(entry.regex).not.toContain('(?<!');
   });
 });
