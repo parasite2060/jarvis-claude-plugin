@@ -23,6 +23,11 @@
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start-vault-tree.js\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start-worker.js\"",
+            "timeout": 8
           }
         ]
       }
@@ -34,7 +39,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-end.js\"",
-            "timeout": 30
+            "timeout": 5
           }
         ]
       }

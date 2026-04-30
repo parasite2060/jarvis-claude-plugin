@@ -1,4 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PKG_PATH = join(__dirname, '../../package.json');
+const PLUGIN_VERSION = JSON.parse(await readFile(PKG_PATH, 'utf8')).version;
 
 vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
@@ -12,13 +19,29 @@ vi.mock('node:fs', () => ({
   unlinkSync: vi.fn(),
 }));
 
+vi.mock('node:net', () => ({
+  createConnection: vi.fn(),
+}));
+
 const TEST_CACHE_DIR = '/tmp/test-jarvis-cache';
+
+function mockPortFree() {
+  const sock = {
+    setTimeout: vi.fn(),
+    once: vi.fn((event, cb) => {
+      if (event === 'error') queueMicrotask(() => cb({ code: 'ECONNREFUSED' }));
+    }),
+    destroy: vi.fn(),
+  };
+  return sock;
+}
 
 describe('worker-manager', () => {
   let ensureWorkerRunning;
   let mockFetch;
   let spawnMock;
   let fsMocks;
+  let netMocks;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -33,6 +56,18 @@ describe('worker-manager', () => {
     const fs = await import('node:fs');
     fsMocks = fs;
 
+    const net = await import('node:net');
+    netMocks = net;
+    netMocks.createConnection.mockImplementation(() => mockPortFree());
+
+    // worker-manager reads package.json at module load — provide the real version.
+    fsMocks.readFileSync.mockImplementation((path) => {
+      if (typeof path === 'string' && path.endsWith('package.json')) {
+        return JSON.stringify({ version: PLUGIN_VERSION });
+      }
+      return '';
+    });
+
     const mod = await import('../../hooks/lib/worker-manager.js');
     ensureWorkerRunning = mod.ensureWorkerRunning;
   });
@@ -43,22 +78,49 @@ describe('worker-manager', () => {
     vi.resetModules();
   });
 
-  it('returns without spawning when health check succeeds', async () => {
-    mockFetch.mockResolvedValue({ ok: true });
+  it('returns without spawning when health version matches plugin version', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ok', version: PLUGIN_VERSION }),
+    });
 
     await ensureWorkerRunning();
 
     expect(spawnMock).not.toHaveBeenCalled();
   });
 
-  it('attempts to start worker when health check fails and no PID file', async () => {
+  it('terminates and respawns worker when version mismatches', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ok', version: '0.0.1-old' }),
+    });
+    fsMocks.existsSync.mockReturnValue(true);
+    // PID file content; package.json read handled in beforeEach.
+    fsMocks.readFileSync.mockImplementation((path) => {
+      if (typeof path === 'string' && path.endsWith('package.json')) {
+        return JSON.stringify({ version: PLUGIN_VERSION });
+      }
+      return '54321';
+    });
+
+    const originalKill = process.kill;
+    const killMock = vi.fn();
+    process.kill = killMock;
+
+    spawnMock.mockReturnValue({ pid: 99999, unref: vi.fn(), on: vi.fn() });
+
+    await ensureWorkerRunning();
+
+    expect(killMock).toHaveBeenCalledWith(54321, 'SIGTERM');
+    expect(spawnMock).toHaveBeenCalled();
+
+    process.kill = originalKill;
+  });
+
+  it('attempts to start worker when health is unreachable and no PID file', async () => {
     mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
     fsMocks.existsSync.mockReturnValue(false);
-    spawnMock.mockReturnValue({
-      pid: 12345,
-      unref: vi.fn(),
-      on: vi.fn(),
-    });
+    spawnMock.mockReturnValue({ pid: 12345, unref: vi.fn(), on: vi.fn() });
 
     await ensureWorkerRunning();
 
@@ -77,17 +139,17 @@ describe('worker-manager', () => {
   it('handles stale PID file (process not alive)', async () => {
     mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
     fsMocks.existsSync.mockReturnValue(true);
-    fsMocks.readFileSync.mockReturnValue('99999');
+    fsMocks.readFileSync.mockImplementation((path) => {
+      if (typeof path === 'string' && path.endsWith('package.json')) {
+        return JSON.stringify({ version: PLUGIN_VERSION });
+      }
+      return '99999';
+    });
 
-    // Mock process.kill to throw (process not alive)
     const originalKill = process.kill;
     process.kill = vi.fn(() => { throw new Error('ESRCH'); });
 
-    spawnMock.mockReturnValue({
-      pid: 12345,
-      unref: vi.fn(),
-      on: vi.fn(),
-    });
+    spawnMock.mockReturnValue({ pid: 12345, unref: vi.fn(), on: vi.fn() });
 
     await ensureWorkerRunning();
 
@@ -97,18 +159,26 @@ describe('worker-manager', () => {
     process.kill = originalKill;
   });
 
-  it('skips spawn when PID file exists and process is alive', async () => {
+  it('terminates wedged worker when PID is alive but health is unreachable', async () => {
     mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
     fsMocks.existsSync.mockReturnValue(true);
-    fsMocks.readFileSync.mockReturnValue('12345');
+    fsMocks.readFileSync.mockImplementation((path) => {
+      if (typeof path === 'string' && path.endsWith('package.json')) {
+        return JSON.stringify({ version: PLUGIN_VERSION });
+      }
+      return '12345';
+    });
 
-    // Mock process.kill to succeed (process is alive)
     const originalKill = process.kill;
-    process.kill = vi.fn();
+    const killMock = vi.fn();
+    process.kill = killMock;
+
+    spawnMock.mockReturnValue({ pid: 99999, unref: vi.fn(), on: vi.fn() });
 
     await ensureWorkerRunning();
 
-    expect(spawnMock).not.toHaveBeenCalled();
+    expect(killMock).toHaveBeenCalledWith(12345, 'SIGTERM');
+    expect(spawnMock).toHaveBeenCalled();
 
     process.kill = originalKill;
   });
@@ -123,11 +193,7 @@ describe('worker-manager', () => {
   it('creates cache directory before spawning', async () => {
     mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
     fsMocks.existsSync.mockReturnValue(false);
-    spawnMock.mockReturnValue({
-      pid: 12345,
-      unref: vi.fn(),
-      on: vi.fn(),
-    });
+    spawnMock.mockReturnValue({ pid: 12345, unref: vi.fn(), on: vi.fn() });
 
     await ensureWorkerRunning();
 
