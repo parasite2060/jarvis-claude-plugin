@@ -14,7 +14,7 @@
 
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createConnection } from 'node:net';
 import { config } from './jarvis-client.js';
@@ -140,6 +140,19 @@ function spawnWorker() {
   }
 }
 
+function detectWorkerDirDrift(healthPayload, hookWorkerDir) {
+  // The /health field is only present on workers running the post-spec-3 build.
+  // Older workers omit it entirely; treat any non-string (missing, null, number)
+  // as the older-version case so plugin upgrades don't emit false-positive
+  // warnings until both sides advance. AC 5, 6.
+  const reported = healthPayload?.workerDir;
+  if (typeof reported !== 'string') return null;
+  const hookPath = resolve(resolveHome(hookWorkerDir));
+  const workerPath = resolve(resolveHome(reported));
+  if (hookPath === workerPath) return { drift: false, hookPath, workerPath };
+  return { drift: true, hookPath, workerPath };
+}
+
 function isVersionMatch(reportedVersion) {
   // 'unknown' on either side cannot prove a match — treat as mismatch so a
   // broken package.json on the running worker forces a restart instead of a
@@ -154,6 +167,12 @@ export async function ensureWorkerRunning() {
     const health = await fetchHealth();
 
     if (health) {
+      const drift = detectWorkerDirDrift(health, config.workerDir);
+      if (drift?.drift) {
+        console.error(
+          `jarvis.worker-manager.workerdir-drift: hook=${drift.hookPath} worker=${drift.workerPath}`,
+        );
+      }
       if (isVersionMatch(health.version)) return;
       const pid = readPid();
       if (pid && isProcessAlive(pid)) {
