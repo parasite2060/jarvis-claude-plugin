@@ -7,6 +7,7 @@ import { drainConversations } from './conversation-drain.js';
 import { createLogger } from './lib/logger.js';
 import { loadWorkerConfig } from './lib/config.js';
 import { migrateLegacyWorkspace } from './lib/migrate-workspace.js';
+import { sweepOrphanTmpFiles } from './lib/tmp-sweep.js';
 
 const config = loadWorkerConfig();
 
@@ -177,6 +178,14 @@ server.on('error', (err) => {
   }
   logger.error(`jarvis.worker.server-error: ${err.message}`);
 });
+
+// Best-effort orphan sweep before opening the listener. Wrapped so a sweep
+// fault (unexpected throw past the helper's own guards) never blocks startup.
+try {
+  sweepOrphanTmpFiles({ workerDir: config.workerDir, logger });
+} catch (err) {
+  logger.warn(`jarvis.worker.tmp-sweep-failed: ${errMsg(err)}`);
+}
 
 server.listen(config.workerPort, '127.0.0.1', () => {
   writePid();

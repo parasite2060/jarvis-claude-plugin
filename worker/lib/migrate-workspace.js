@@ -20,6 +20,7 @@
 import {
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   renameSync,
@@ -51,9 +52,26 @@ function moveAcrossDevices(source, target) {
   rmSync(source, { recursive: true, force: true });
 }
 
+function isSymlink(path) {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
 function moveOne(name, cacheDir, workerDir) {
   const source = join(cacheDir, name);
   if (!existsSync(source)) return;
+
+  // Symlink guard: renameSync would relocate the link node, breaking a user's
+  // intentional `~/.jarvis-cache/ai-memory/logs → /var/log/jarvis` setup. Leave
+  // the symlink in place and let the worker write under workerDir per the
+  // post-migration contract.
+  if (isSymlink(source)) {
+    warn(`jarvis.migrate.symlink-skipped: ${source}`);
+    return;
+  }
 
   const target = join(workerDir, name);
   if (existsSync(target)) {

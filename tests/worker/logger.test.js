@@ -137,6 +137,24 @@ describe('worker logger', () => {
     expect(readFileSync(blocker, 'utf8')).toContain('day-one');
   });
 
+  it('should re-create the log directory and write the next line when logs dir is removed after rotation', () => {
+    // Arrange
+    let now = new Date('2026-04-30T12:00:00Z').getTime();
+    const logger = createLogger({ dir, nowFn: () => now });
+    logger.info('day-one line');
+
+    // Act — advance to next day to trigger rotation, which resets dirReady.
+    now = new Date('2026-05-01T00:30:00Z').getTime();
+    logger.info('day-two line');
+    rmSync(dir, { recursive: true, force: true });
+    logger.info('after-recovery line');
+
+    // Assert
+    expect(existsSync(dir)).toBe(true);
+    const active = readFileSync(join(dir, 'worker.log'), 'utf8');
+    expect(active).toContain('after-recovery line');
+  });
+
   it('should fall back to stderr when the log directory cannot be created', () => {
     // Arrange
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);

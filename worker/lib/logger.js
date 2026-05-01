@@ -102,6 +102,10 @@ export function createLogger({ dir, retentionDays = 7, nowFn = Date.now } = {}) 
       return;
     }
     activeDate = today;
+    // Reset so the next write re-runs mkdirSync. If the operator removed the
+    // logs dir manually between rotations, we self-heal instead of falling to
+    // stderr forever.
+    dirReady = false;
     prune();
   }
 
