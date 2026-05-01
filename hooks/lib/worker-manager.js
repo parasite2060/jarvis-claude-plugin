@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { createConnection } from 'node:net';
 import { config } from './jarvis-client.js';
 import { resolveHome } from '../../lib/paths.js';
+import { withLock, LockTimeoutError } from '../../lib/file-lock.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = join(__dirname, '..', '..');
@@ -174,24 +175,52 @@ export async function ensureWorkerRunning() {
         );
       }
       if (isVersionMatch(health.version)) return;
-      const pid = readPid();
-      if (pid && isProcessAlive(pid)) {
-        await terminateWorker(pid, `version-mismatch running=${health.version} expected=${PLUGIN_VERSION}`);
-      }
-    } else {
-      const pid = readPid();
-      if (pid && isProcessAlive(pid)) {
-        await terminateWorker(pid, 'health-unreachable');
-      } else if (pid) {
-        try { unlinkSync(getPidFilePath()); } catch { /* ignore */ }
-      }
     }
 
-    // Always clear the PID file before spawn — if terminate failed to free the
-    // port, the new child will exit on EADDRINUSE and we want the next session
-    // to retry from a clean slate rather than trust a misleading PID.
-    try { unlinkSync(getPidFilePath()); } catch { /* ignore */ }
-    spawnWorker();
+    // Serialise kill+spawn across concurrent SessionStart hooks. Without this
+    // lock two near-simultaneous sessions race-spawn workers, the loser hits
+    // EADDRINUSE, and the PID file ends up describing a dead child. The lock
+    // is released in `finally` inside `withLock`, including on throw or
+    // EADDRINUSE exit. AC 1–6.
+    mkdirSync(WORKER_DIR, { recursive: true });
+    const lockPath = join(WORKER_DIR, '.spawn.lock');
+    try {
+      await withLock(
+        lockPath,
+        { staleMs: 30_000, retryMs: 100, timeoutMs: 2_000 },
+        async () => {
+          // Re-check health inside the lock — the previous holder may have
+          // already spawned a matching-version worker, in which case our work
+          // here is done. Skips the wasted terminate+respawn cycle.
+          const innerHealth = await fetchHealth();
+          if (innerHealth && isVersionMatch(innerHealth.version)) return;
+
+          const pid = readPid();
+          if (innerHealth) {
+            if (pid && isProcessAlive(pid)) {
+              await terminateWorker(
+                pid,
+                `version-mismatch running=${innerHealth.version} expected=${PLUGIN_VERSION}`,
+              );
+            }
+          } else if (pid && isProcessAlive(pid)) {
+            await terminateWorker(pid, 'health-unreachable');
+          }
+
+          // Always clear the PID file before spawn — if terminate failed to free
+          // the port, the new child will exit on EADDRINUSE and we want the next
+          // session to retry from a clean slate rather than trust a misleading PID.
+          try { unlinkSync(getPidFilePath()); } catch { /* ignore */ }
+          spawnWorker();
+        },
+      );
+    } catch (err) {
+      if (err instanceof LockTimeoutError) {
+        console.error(`jarvis.worker-manager.lock-timeout: workerDir=${WORKER_DIR}`);
+        return;
+      }
+      throw err;
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`jarvis.worker-manager.error: ${message}`);
