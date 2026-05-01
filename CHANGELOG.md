@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.6.0...jarvis-plugin-v0.7.0) (2026-05-01)
+
+
+### Features
+
+* **hooks:** non-blocking SessionEnd queue + versioned worker drain ([bfe30a4](https://github.com/parasite2060/jarvis-claude-plugin/commit/bfe30a40f4f5f69d655963ab195ada051c1ce827))
+* **worker:** file logging + idle shutdown, plus plugin-wide clean-code pass ([79777f4](https://github.com/parasite2060/jarvis-claude-plugin/commit/79777f46c0d87e8aa3064c2a2304ecb4e6156424))
+
 ## [0.6.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.5.0...jarvis-plugin-v0.6.0) (2026-04-24)
 
 
