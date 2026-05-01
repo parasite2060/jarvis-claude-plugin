@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, chmodSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, chmodSync, symlinkSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { migrateLegacyWorkspace } from '../../../worker/lib/migrate-workspace.js';
@@ -121,6 +121,30 @@ describe('migrateLegacyWorkspace', () => {
     expect(existsSync(join(workerDir, 'logs', 'a.log'))).toBe(true);
     expect(existsSync(join(cacheDir, 'logs'))).toBe(false);
   });
+
+  it.skipIf(process.platform === 'win32')(
+    'should skip symlinked legacy directory and leave the symlink in place when migrating',
+    () => {
+      // Arrange — user symlinked their legacy logs dir to an external target.
+      const externalTarget = join(cacheDir, '..', 'external-logs');
+      mkdirSync(externalTarget);
+      writeFileSync(join(externalTarget, 'kept.log'), 'external');
+      const legacySymlink = join(cacheDir, 'logs');
+      symlinkSync(externalTarget, legacySymlink, 'dir');
+
+      // Act
+      migrateLegacyWorkspace({ cacheDir, workerDir });
+
+      // Assert
+      expect(existsSync(legacySymlink)).toBe(true);
+      expect(lstatSync(legacySymlink).isSymbolicLink()).toBe(true);
+      expect(existsSync(join(workerDir, 'logs'))).toBe(false);
+      const wroteSkip = stderrSpy.mock.calls.some(([line]) =>
+        typeof line === 'string' && line.includes('jarvis.migrate.symlink-skipped'),
+      );
+      expect(wroteSkip).toBe(true);
+    },
+  );
 
   it('should continue without throwing when cacheDir or workerDir is missing', () => {
     // Act & Assert
