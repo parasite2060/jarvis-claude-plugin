@@ -220,3 +220,134 @@ describe('worker-manager > ensureWorkerRunning', () => {
     );
   });
 });
+
+describe('worker-manager > workerDir drift detection', () => {
+  let mockFetch;
+  let spawnMock;
+  let fsMocks;
+  let netMocks;
+  let stderrSpy;
+
+  async function loadEnsureWorkerRunning(hookWorkerDir) {
+    vi.resetModules();
+    vi.stubEnv('CLAUDE_PLUGIN_OPTION_WORKERPORT', '39999');
+    vi.stubEnv('CLAUDE_PLUGIN_OPTION_CACHEDIR', TEST_CACHE_DIR);
+    vi.stubEnv('CLAUDE_PLUGIN_OPTION_WORKERDIR', hookWorkerDir);
+    const mod = await import('../../hooks/lib/worker-manager.js');
+    return mod.ensureWorkerRunning;
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    mockFetch = vi.fn();
+    vi.stubGlobal('fetch', mockFetch);
+    stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const cp = await import('node:child_process');
+    spawnMock = cp.spawn;
+
+    const fs = await import('node:fs');
+    fsMocks = fs;
+
+    const net = await import('node:net');
+    netMocks = net;
+    netMocks.createConnection.mockImplementation(() => mockPortFree());
+
+    fsMocks.readFileSync.mockImplementation((path) => {
+      if (typeof path === 'string' && path.endsWith('package.json')) {
+        return JSON.stringify({ version: PLUGIN_VERSION });
+      }
+      return '';
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+    stderrSpy.mockRestore();
+  });
+
+  it('should not log drift when hook and worker workerDir match', async () => {
+    // Arrange
+    const sharedPath = '/abs/path/worker';
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ok', version: PLUGIN_VERSION, workerDir: sharedPath }),
+    });
+    const ensureWorkerRunning = await loadEnsureWorkerRunning(sharedPath);
+
+    // Act
+    await ensureWorkerRunning();
+
+    // Assert
+    const driftLines = stderrSpy.mock.calls
+      .map((call) => String(call[0]))
+      .filter((line) => line.includes('workerdir-drift'));
+    expect(driftLines).toEqual([]);
+  });
+
+  it('should log exactly one drift line when hook and worker workerDir mismatch', async () => {
+    // Arrange
+    const hookPath = '/abs/path/Y';
+    const workerPath = '/abs/path/X';
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ok', version: PLUGIN_VERSION, workerDir: workerPath }),
+    });
+    const ensureWorkerRunning = await loadEnsureWorkerRunning(hookPath);
+
+    // Act
+    await ensureWorkerRunning();
+
+    // Assert
+    const driftLines = stderrSpy.mock.calls
+      .map((call) => String(call[0]))
+      .filter((line) => line.includes('workerdir-drift'));
+    expect(driftLines).toHaveLength(1);
+    expect(driftLines[0]).toContain(`hook=${hookPath}`);
+    expect(driftLines[0]).toContain(`worker=${workerPath}`);
+    // Warning is purely diagnostic — no spawn or terminate side-effects.
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(fsMocks.unlinkSync).not.toHaveBeenCalled();
+  });
+
+  it('should not log drift when worker /health payload omits workerDir (older worker)', async () => {
+    // Arrange
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ok', version: PLUGIN_VERSION }),
+    });
+    const ensureWorkerRunning = await loadEnsureWorkerRunning('/abs/path/Y');
+
+    // Act
+    await ensureWorkerRunning();
+
+    // Assert
+    const driftLines = stderrSpy.mock.calls
+      .map((call) => String(call[0]))
+      .filter((line) => line.includes('workerdir-drift'));
+    expect(driftLines).toEqual([]);
+  });
+
+  it('should not log drift when hook config uses tilde and worker reports the absolute equivalent', async () => {
+    // Arrange
+    const { homedir } = await import('node:os');
+    const hookConfigPath = '~/.jarvis-cache/worker';
+    const workerReportedPath = `${homedir()}/.jarvis-cache/worker`;
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ok', version: PLUGIN_VERSION, workerDir: workerReportedPath }),
+    });
+    const ensureWorkerRunning = await loadEnsureWorkerRunning(hookConfigPath);
+
+    // Act
+    await ensureWorkerRunning();
+
+    // Assert
+    const driftLines = stderrSpy.mock.calls
+      .map((call) => String(call[0]))
+      .filter((line) => line.includes('workerdir-drift'));
+    expect(driftLines).toEqual([]);
+  });
+});
