@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.9.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.8.0...jarvis-plugin-v0.9.0) (2026-05-01)
+
+
+### Features
+
+* **hook:** warn on hook ↔ worker workerDir drift ([e0337ee](https://github.com/parasite2060/jarvis-claude-plugin/commit/e0337ee8003d9ac80fbda8661c0ecf8057b41fc3))
+* **worker,hook:** exclusive on-disk lock around spawn + migration ([12560bc](https://github.com/parasite2060/jarvis-claude-plugin/commit/12560bc7b6f77cdab63387a61c65a1b77861203a))
+* **worker:** bind to 127.0.0.1 only and log on successful drain ([f722ba5](https://github.com/parasite2060/jarvis-claude-plugin/commit/f722ba583201da98a8a3b73fb4453c49aa269239))
+* **worker:** cheap-cleanup bundle (.tmp sweep, dirReady recovery, symlink guard) ([dddc85f](https://github.com/parasite2060/jarvis-claude-plugin/commit/dddc85f08b0343e76c5c47a34e878f70da4a1c70))
+* **worker:** drain retry budget + auth-failure latch via /health ([8867934](https://github.com/parasite2060/jarvis-claude-plugin/commit/8867934e4ae3496d98cfbff4b41c819ca923fb9d))
+
 ## [0.8.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.7.3...jarvis-plugin-v0.8.0) (2026-05-01)
 
 
