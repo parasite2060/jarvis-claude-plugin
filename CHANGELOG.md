@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.7.3...jarvis-plugin-v0.8.0) (2026-05-01)
+
+
+### Features
+
+* **worker:** expose fetchTimeoutMs as plugin config (default 180000) ([1166da9](https://github.com/parasite2060/jarvis-claude-plugin/commit/1166da98cdc097d99af00ad5613f29449963ae73))
+* **worker:** separate workerDir + richer drain diagnostics ([11425e7](https://github.com/parasite2060/jarvis-claude-plugin/commit/11425e7bfbb1810d3468f46bafbead83dd8bdc5d))
+
 ## [0.7.3](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.7.2...jarvis-plugin-v0.7.3) (2026-05-01)
 
 
