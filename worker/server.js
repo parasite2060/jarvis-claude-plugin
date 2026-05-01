@@ -6,13 +6,19 @@ import { syncFiles } from './file-sync.js';
 import { drainConversations } from './conversation-drain.js';
 import { createLogger } from './lib/logger.js';
 import { loadWorkerConfig } from './lib/config.js';
+import { migrateLegacyWorkspace } from './lib/migrate-workspace.js';
 
 const config = loadWorkerConfig();
 
 mkdirSync(config.cacheDir, { recursive: true });
+mkdirSync(config.workerDir, { recursive: true });
 
-const PID_FILE = join(config.cacheDir, '.worker.pid');
-const logger = createLogger({ dir: join(config.cacheDir, 'logs') });
+// Run migration before the logger so the first log line lands in the new
+// location. Safe to call on every boot — idempotent and never overwrites.
+migrateLegacyWorkspace({ cacheDir: config.cacheDir, workerDir: config.workerDir });
+
+const PID_FILE = join(config.workerDir, '.worker.pid');
+const logger = createLogger({ dir: join(config.workerDir, 'logs') });
 
 if (!config.apiKey) {
   logger.error('jarvis.worker.startup-failed: CLAUDE_PLUGIN_OPTION_apiKey is required');
@@ -68,7 +74,7 @@ const runDrain = singleFlight(async function runDrainBody() {
   const result = await drainConversations({
     serverUrl: config.serverUrl,
     apiKey: config.apiKey,
-    cacheDir: config.cacheDir,
+    workerDir: config.workerDir,
     extraHeaders: config.extraHeaders,
     logger,
   });
@@ -91,6 +97,7 @@ function buildHealthPayload() {
     lastActivityAt: new Date(state.lastActivityAtWall).toISOString(),
     idleShutdownAt: new Date(state.lastActivityAtWall + config.idleTimeoutMs).toISOString(),
     cacheDir: config.cacheDir,
+    workerDir: config.workerDir,
   };
 }
 
@@ -172,7 +179,7 @@ server.on('error', (err) => {
 
 server.listen(config.workerPort, () => {
   writePid();
-  logger.info(`jarvis.worker.started: version=${config.pluginVersion} port=${config.workerPort} cacheDir=${config.cacheDir} idleMs=${config.idleTimeoutMs}`);
+  logger.info(`jarvis.worker.started: version=${config.pluginVersion} port=${config.workerPort} cacheDir=${config.cacheDir} workerDir=${config.workerDir} idleMs=${config.idleTimeoutMs}`);
   runGuarded('sync', runSync);
   runGuarded('drain', runDrain);
   timers.sync = scheduleEvery(config.syncIntervalMs, 'sync', runSync);

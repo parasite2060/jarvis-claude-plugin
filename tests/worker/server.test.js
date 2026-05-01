@@ -50,11 +50,15 @@ function waitForServer(port, maxAttempts = 50) {
 }
 
 function spawnWorker(cacheDir, port, envOverrides = {}) {
+  // Point both cacheDir and workerDir at the same temp directory so the test
+  // never touches the user's real home (~/.jarvis-cache/worker) and assertions
+  // can use cacheDir for both vault and worker-owned files.
   const env = {
     ...process.env,
     CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://127.0.0.1:19999',
     CLAUDE_PLUGIN_OPTION_APIKEY: 'test-key',
     CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
+    CLAUDE_PLUGIN_OPTION_WORKERDIR: cacheDir,
     CLAUDE_PLUGIN_OPTION_WORKERPORT: String(port),
     ...envOverrides,
   };

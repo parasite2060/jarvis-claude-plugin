@@ -25,13 +25,24 @@ function env(key) {
   return process.env[`CLAUDE_PLUGIN_OPTION_${key.toUpperCase()}`];
 }
 
+// Claude Code occasionally propagates the literal string "undefined" for
+// unconfigured plugin envs; treat it (and "", "null", ".") as unset.
+const SENTINEL_UNSET = new Set(['', '.', 'undefined', 'null']);
+
+function pathArg(envKey, cliKey, fallback, cliArgs) {
+  const raw = env(envKey) ?? cliArgs[cliKey];
+  if (typeof raw !== 'string' || SENTINEL_UNSET.has(raw.trim())) return fallback;
+  return raw;
+}
+
 export function parseArgs() {
   const cliArgs = parseCliArgs();
 
   return {
     serverUrl: env('serverUrl') || cliArgs.serverUrl || 'http://localhost:8000',
     apiKey: env('apiKey') || cliArgs.apiKey || '',
-    cacheDir: env('cacheDir') || cliArgs.cacheDir || '~/.jarvis-cache/ai-memory',
+    cacheDir: pathArg('cacheDir', 'cacheDir', '~/.jarvis-cache/ai-memory', cliArgs),
+    workerDir: pathArg('workerDir', 'workerDir', '~/.jarvis-cache/worker', cliArgs),
     workerPort: Number(env('workerPort') || cliArgs.workerPort) || 37777,
     extraHeaders: env('extraHeaders') || cliArgs.extraHeaders || '',
   };

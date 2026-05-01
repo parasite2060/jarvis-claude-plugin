@@ -34,12 +34,13 @@ function readPluginVersion() {
 
 const WORKER_PORT = config.workerPort;
 const CACHE_DIR = resolveHome(config.cacheDir);
+const WORKER_DIR = resolveHome(config.workerDir);
 const PLUGIN_VERSION = readPluginVersion();
 const PORT_FREE_POLL_MS = 100;
 const PORT_FREE_TIMEOUT_MS = 2000;
 
 function getPidFilePath() {
-  return join(CACHE_DIR, '.worker.pid');
+  return join(WORKER_DIR, '.worker.pid');
 }
 
 async function fetchHealth() {
@@ -107,7 +108,10 @@ async function terminateWorker(pid, reason) {
 }
 
 function spawnWorker() {
+  // Ensure both directories exist so the PID file write below and the worker's
+  // own startup don't race on missing parents.
   mkdirSync(CACHE_DIR, { recursive: true });
+  mkdirSync(WORKER_DIR, { recursive: true });
   const workerScript = join(PLUGIN_ROOT, 'worker', 'server.js');
 
   const child = spawn('node', [workerScript], {
@@ -118,6 +122,7 @@ function spawnWorker() {
       CLAUDE_PLUGIN_OPTION_SERVERURL: config.serverUrl,
       CLAUDE_PLUGIN_OPTION_APIKEY: config.apiKey,
       CLAUDE_PLUGIN_OPTION_CACHEDIR: config.cacheDir,
+      CLAUDE_PLUGIN_OPTION_WORKERDIR: config.workerDir,
       CLAUDE_PLUGIN_OPTION_WORKERPORT: String(config.workerPort),
       CLAUDE_PLUGIN_OPTION_EXTRAHEADERS: config.extraHeaders || '',
     },
