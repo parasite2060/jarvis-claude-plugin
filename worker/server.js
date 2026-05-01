@@ -8,6 +8,7 @@ import { createLogger } from './lib/logger.js';
 import { loadWorkerConfig } from './lib/config.js';
 import { migrateLegacyWorkspace } from './lib/migrate-workspace.js';
 import { sweepOrphanTmpFiles } from './lib/tmp-sweep.js';
+import { withLock, LockTimeoutError } from '../lib/file-lock.js';
 
 const config = loadWorkerConfig();
 
@@ -16,7 +17,29 @@ mkdirSync(config.workerDir, { recursive: true });
 
 // Run migration before the logger so the first log line lands in the new
 // location. Safe to call on every boot — idempotent and never overwrites.
-migrateLegacyWorkspace({ cacheDir: config.cacheDir, workerDir: config.workerDir });
+// Serialised on `${workerDir}/.migrate.lock` so two concurrent worker boots
+// (e.g. Edge 2 race) cannot both call `renameSync` and hit ENOENT. On lock
+// timeout we proceed without migrating — the other process is doing it, and
+// startup must NEVER be blocked by lock contention. AC 7–9.
+await (async () => {
+  try {
+    await withLock(
+      join(config.workerDir, '.migrate.lock'),
+      { staleMs: 30_000, retryMs: 200, timeoutMs: 5_000 },
+      async () => {
+        migrateLegacyWorkspace({ cacheDir: config.cacheDir, workerDir: config.workerDir });
+      },
+    );
+  } catch (err) {
+    if (err instanceof LockTimeoutError) {
+      try {
+        process.stderr.write(`jarvis.migrate.lock-timeout: workerDir=${config.workerDir}\n`);
+      } catch { /* ignore */ }
+      return;
+    }
+    throw err;
+  }
+})();
 
 const PID_FILE = join(config.workerDir, '.worker.pid');
 const logger = createLogger({ dir: join(config.workerDir, 'logs') });

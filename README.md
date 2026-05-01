@@ -84,6 +84,16 @@ A background Node.js process that keeps vault files synced locally:
 - Auto-started by the SessionStart hook
 - Persists between sessions via PID file
 
+#### Worker on-disk state
+
+Files the worker keeps under `${workerDir}` (default `~/.jarvis-cache/worker`):
+
+- `${workerDir}/.worker.pid` — PID of the running worker; rewritten on every spawn, removed on clean shutdown.
+- `${workerDir}/logs/worker.log` — rotating worker log.
+- `${workerDir}/pending-conversations/*.json` — drained transcripts queued for the server.
+- `${workerDir}/.spawn.lock` — transient; held during worker spawn (kill+spawn critical section in the SessionStart hook); auto-cleaned by the lock holder; safe to delete if no worker is running.
+- `${workerDir}/.migrate.lock` — transient; held during legacy-workspace migration on worker boot; auto-cleaned; safe to delete.
+
 ## Configuration
 
 Plugin configuration is managed through Claude Code's `userConfig` system (stored in keychain for sensitive values):

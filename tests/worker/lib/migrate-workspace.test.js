@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { migrateLegacyWorkspace } from '../../../worker/lib/migrate-workspace.js';
+import { withLock } from '../../../lib/file-lock.js';
 
 describe('migrateLegacyWorkspace', () => {
   let cacheDir;
@@ -151,5 +152,35 @@ describe('migrateLegacyWorkspace', () => {
     expect(() => migrateLegacyWorkspace({ cacheDir: '', workerDir })).not.toThrow();
     expect(() => migrateLegacyWorkspace({ cacheDir, workerDir: '' })).not.toThrow();
     expect(() => migrateLegacyWorkspace({})).not.toThrow();
+  });
+
+  it('should rename each legacy item exactly once when two boots migrate concurrently under withLock', async () => {
+    // Arrange — replicate the worker/server.js migration call site where two
+    // boots race. With withLock serialising, the loser sees an empty cacheDir
+    // and produces no ENOENT warning.
+    mkdirSync(workerDir, { recursive: true });
+    mkdirSync(join(cacheDir, 'logs'));
+    writeFileSync(join(cacheDir, 'logs', 'a.log'), 'x');
+    mkdirSync(join(cacheDir, 'pending-conversations'));
+    writeFileSync(join(cacheDir, 'pending-conversations', 'q.json'), '{}');
+    const lockPath = join(workerDir, '.migrate.lock');
+    const lockOpts = { staleMs: 30_000, retryMs: 50, timeoutMs: 5_000 };
+    const run = () =>
+      withLock(lockPath, lockOpts, async () => {
+        migrateLegacyWorkspace({ cacheDir, workerDir });
+      });
+
+    // Act
+    await Promise.all([run(), run()]);
+
+    // Assert — each legacy item lives at the new location exactly once.
+    expect(existsSync(join(workerDir, 'logs', 'a.log'))).toBe(true);
+    expect(existsSync(join(workerDir, 'pending-conversations', 'q.json'))).toBe(true);
+    expect(existsSync(join(cacheDir, 'logs'))).toBe(false);
+    expect(existsSync(join(cacheDir, 'pending-conversations'))).toBe(false);
+    const enoentLines = stderrSpy.mock.calls
+      .map(([line]) => (typeof line === 'string' ? line : ''))
+      .filter((line) => line.includes('ENOENT'));
+    expect(enoentLines).toEqual([]);
   });
 });

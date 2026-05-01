@@ -1,14 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal();
+  // openSync / closeSync / statSync / unlinkSync are passed through to the
+  // real fs so the on-disk lock file used by `withLock` (lib/file-lock.js)
+  // works against tmpdir during these tests.
   return {
     ...actual,
     existsSync: vi.fn(),
     readFileSync: vi.fn(actual.readFileSync),
     writeFileSync: vi.fn(),
     mkdirSync: vi.fn(),
-    unlinkSync: vi.fn(),
+    unlinkSync: vi.fn(actual.unlinkSync),
   };
 });
 
@@ -47,11 +52,15 @@ describe('worker-manager > ensureWorkerRunning', () => {
   let spawnMock;
   let fsMocks;
   let netMocks;
+  let tmpWorkerDir;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.resetModules();
+    tmpWorkerDir = mkdtempSync(join(tmpdir(), 'jarvis-wm-'));
     vi.stubEnv('CLAUDE_PLUGIN_OPTION_WORKERPORT', '39999');
     vi.stubEnv('CLAUDE_PLUGIN_OPTION_CACHEDIR', TEST_CACHE_DIR);
+    vi.stubEnv('CLAUDE_PLUGIN_OPTION_WORKERDIR', tmpWorkerDir);
     mockFetch = vi.fn();
     vi.stubGlobal('fetch', mockFetch);
 
@@ -80,6 +89,7 @@ describe('worker-manager > ensureWorkerRunning', () => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.resetModules();
+    try { rmSync(tmpWorkerDir, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
   it('should not spawn when health version matches plugin version', async () => {
@@ -218,6 +228,32 @@ describe('worker-manager > ensureWorkerRunning', () => {
       TEST_CACHE_DIR,
       { recursive: true },
     );
+  });
+
+  it('should spawn exactly once when two ensureWorkerRunning calls race', async () => {
+    // Arrange — both invocations decide to spawn (health=null on the first
+    // probe). Only one should win the spawn lock; the other re-checks health
+    // inside the lock, sees the now-running worker, and returns.
+    fsMocks.existsSync.mockReturnValue(false);
+    let healthCalls = 0;
+    mockFetch.mockImplementation(async () => {
+      healthCalls += 1;
+      // Calls 1–3: outer probes (×2) + winner's inner re-check return
+      // unreachable so the winner proceeds to spawn. Call 4: loser's inner
+      // re-check (after the winner exits the lock) sees a matching-version
+      // worker and bails without a second spawn.
+      if (healthCalls <= 3) {
+        return { ok: false, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => ({ status: 'ok', version: PLUGIN_VERSION }) };
+    });
+    spawnMock.mockReturnValue({ pid: 12345, unref: vi.fn(), on: vi.fn() });
+
+    // Act
+    await Promise.all([ensureWorkerRunning(), ensureWorkerRunning()]);
+
+    // Assert
+    expect(spawnMock).toHaveBeenCalledTimes(1);
   });
 });
 
