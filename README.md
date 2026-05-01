@@ -91,8 +91,18 @@ Files the worker keeps under `${workerDir}` (default `~/.jarvis-cache/worker`):
 - `${workerDir}/.worker.pid` — PID of the running worker; rewritten on every spawn, removed on clean shutdown.
 - `${workerDir}/logs/worker.log` — rotating worker log.
 - `${workerDir}/pending-conversations/*.json` — drained transcripts queued for the server.
+- `${workerDir}/pending-conversations/*.json.attempts` — sidecar files holding the per-file retry count (single integer, atomic write). Cleared on success or once the budget is exhausted; mtime acts as the last-attempt timestamp for exponential backoff (1, 2, 4, 8, 16, 30, 30, 30 minutes, capped at 30 min).
+- `${workerDir}/pending-conversations/.failed/*.json` — files moved here after the retry budget (default 8 attempts) is exhausted, after a 401/403 auth failure, or after the payload could not be parsed. Operator inspects and deletes manually.
 - `${workerDir}/.spawn.lock` — transient; held during worker spawn (kill+spawn critical section in the SessionStart hook); auto-cleaned by the lock holder; safe to delete if no worker is running.
 - `${workerDir}/.migrate.lock` — transient; held during legacy-workspace migration on worker boot; auto-cleaned; safe to delete.
+
+#### When draining stops
+
+If queued conversations are not making it to the server, work down this list:
+
+1. `curl http://127.0.0.1:<workerPort>/health` — if the response includes `"authBlocked": true` with `authBlockedReason: "401"` or `"403"`, the worker has latched on an auth failure and is skipping every drain tick. Fix the API key (or server-side credentials), then clear the latch with `curl 'http://127.0.0.1:<workerPort>/health?clearAuthBlock=1'`. The next drain tick resumes normally; no worker restart required.
+2. Check `${workerDir}/pending-conversations/.failed/` — files there were either auth-blocked or hit the retry budget (`reason=retry-budget-exhausted attempts=8 lastStatus=...`). Inspect, move them back into `pending-conversations/` if you want to re-attempt, or delete.
+3. Check `${workerDir}/logs/worker.log` for `jarvis.drain.retryable:` (transient 5xx/network) and `jarvis.drain.failed-moved:` (terminal) lines.
 
 ## Configuration
 

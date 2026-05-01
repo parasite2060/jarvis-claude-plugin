@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import http from 'node:http';
-import { mkdtempSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
@@ -253,6 +253,81 @@ describe('worker/server', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
     expect(contents).toContain('host=127.0.0.1');
+  });
+
+  it('should expose authBlocked=true in /health payload after the worker observes a 401 on POST /drain', async () => {
+    // Arrange — start a fake jarvis server that always returns 401, then point
+    // the worker at it, queue a conversation, and trigger a synchronous drain.
+    const fakeServer = http.createServer((req, res) => {
+      res.writeHead(401);
+      res.end('{}');
+    });
+    const fakePort = portCounter++;
+    await new Promise((resolve) => fakeServer.listen(fakePort, '127.0.0.1', resolve));
+    try {
+      await startWorker({ CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${fakePort}` });
+      mkdirSync(join(cacheDir, 'pending-conversations'), { recursive: true });
+      writeFileSync(
+        join(cacheDir, 'pending-conversations', 'sess-x-1.json'),
+        JSON.stringify({ sessionId: 'sess-x', filteredTranscript: 'a\nb\n' }),
+        'utf8',
+      );
+
+      // Act
+      await request(workerPort, 'POST', '/drain');
+      const health = await request(workerPort, 'GET', '/health');
+
+      // Assert
+      expect(health.status).toBe(200);
+      expect(health.body.authBlocked).toBe(true);
+      expect(health.body.authBlockedReason).toBe('401');
+    } finally {
+      await new Promise((resolve) => fakeServer.close(resolve));
+    }
+  });
+
+  it('should reset authBlocked when /health?clearAuthBlock=1 is called', async () => {
+    // Arrange
+    const fakeServer = http.createServer((req, res) => {
+      res.writeHead(401);
+      res.end('{}');
+    });
+    const fakePort = portCounter++;
+    await new Promise((resolve) => fakeServer.listen(fakePort, '127.0.0.1', resolve));
+    try {
+      await startWorker({ CLAUDE_PLUGIN_OPTION_SERVERURL: `http://127.0.0.1:${fakePort}` });
+      mkdirSync(join(cacheDir, 'pending-conversations'), { recursive: true });
+      writeFileSync(
+        join(cacheDir, 'pending-conversations', 'sess-y-1.json'),
+        JSON.stringify({ sessionId: 'sess-y', filteredTranscript: 'a\nb\n' }),
+        'utf8',
+      );
+      await request(workerPort, 'POST', '/drain');
+      const blocked = await request(workerPort, 'GET', '/health');
+      expect(blocked.body.authBlocked).toBe(true);
+
+      // Act
+      const cleared = await request(workerPort, 'GET', '/health?clearAuthBlock=1');
+
+      // Assert
+      expect(cleared.status).toBe(200);
+      expect(cleared.body.authBlocked).toBe(false);
+      expect(cleared.body.authBlockedReason).toBeUndefined();
+    } finally {
+      await new Promise((resolve) => fakeServer.close(resolve));
+    }
+  });
+
+  it('should default authBlocked to false when no auth failure has occurred', async () => {
+    // Arrange
+    await startWorker();
+
+    // Act
+    const res = await request(workerPort, 'GET', '/health');
+
+    // Assert
+    expect(res.body.authBlocked).toBe(false);
+    expect(res.body.authBlockedReason).toBeUndefined();
   });
 
   it('should exit 1 when CLAUDE_PLUGIN_OPTION_APIKEY is missing', async () => {
