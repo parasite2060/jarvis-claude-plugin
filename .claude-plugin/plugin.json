@@ -45,6 +45,12 @@
       "sensitive": true,
       "default": "",
       "description": "Additional HTTP headers as JSON object, e.g. {\"CF-Access-Client-Id\":\"...\",\"CF-Access-Client-Secret\":\"...\"}"
+    },
+    "fetchTimeoutMs": {
+      "title": "Fetch Timeout (ms)",
+      "type": "number",
+      "default": 180000,
+      "description": "Per-request timeout for the worker's POST /conversations and GET /conversations/position calls. Raise on slow uplinks or for very large transcripts; lower to fail fast in test setups."
     }
   }
 }

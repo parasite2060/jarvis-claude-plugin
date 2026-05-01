@@ -125,6 +125,7 @@ function spawnWorker() {
       CLAUDE_PLUGIN_OPTION_WORKERDIR: config.workerDir,
       CLAUDE_PLUGIN_OPTION_WORKERPORT: String(config.workerPort),
       CLAUDE_PLUGIN_OPTION_EXTRAHEADERS: config.extraHeaders || '',
+      CLAUDE_PLUGIN_OPTION_FETCHTIMEOUTMS: String(config.fetchTimeoutMs ?? 180_000),
     },
   });
   // Without an error listener, a synchronous spawn failure (ENOENT, EACCES)

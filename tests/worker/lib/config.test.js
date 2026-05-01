@@ -7,6 +7,7 @@ const ENV_KEYS = [
   'CLAUDE_PLUGIN_OPTION_WORKERDIR',
   'CLAUDE_PLUGIN_OPTION_WORKERPORT',
   'CLAUDE_PLUGIN_OPTION_EXTRAHEADERS',
+  'CLAUDE_PLUGIN_OPTION_FETCHTIMEOUTMS',
   'CLAUDE_PLUGIN_OPTION_IDLEMS',
   'CLAUDE_PLUGIN_OPTION_IDLECHECKMS',
 ];
@@ -47,6 +48,7 @@ describe('loadWorkerConfig', () => {
     expect(config.drainIntervalMs).toBe(30 * 1000);
     expect(config.idleTimeoutMs).toBe(7 * 24 * 60 * 60 * 1000);
     expect(config.idleCheckIntervalMs).toBe(60 * 60 * 1000);
+    expect(config.fetchTimeoutMs).toBe(180_000);
     expect(typeof config.pluginVersion).toBe('string');
     expect(config.pluginVersion.length).toBeGreaterThan(0);
     expect(typeof config.pluginRoot).toBe('string');
@@ -70,6 +72,18 @@ describe('loadWorkerConfig', () => {
     expect(config.workerPort).toBe(12345);
     expect(config.idleTimeoutMs).toBe(500);
     expect(config.idleCheckIntervalMs).toBe(100);
+  });
+
+  it('should override fetchTimeoutMs when CLAUDE_PLUGIN_OPTION_FETCHTIMEOUTMS is set', async () => {
+    // Arrange
+    process.env.CLAUDE_PLUGIN_OPTION_FETCHTIMEOUTMS = '5000';
+    const { loadWorkerConfig } = await import('../../../worker/lib/config.js');
+
+    // Act
+    const config = loadWorkerConfig();
+
+    // Assert
+    expect(config.fetchTimeoutMs).toBe(5000);
   });
 
   it('should override workerDir when CLAUDE_PLUGIN_OPTION_WORKERDIR is set', async () => {
