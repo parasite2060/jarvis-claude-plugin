@@ -6,7 +6,7 @@ import { STDERR_FALLBACK_LOGGER } from './lib/fallback-logger.js';
 const QUEUE_DIRNAME = 'pending-conversations';
 const FAILED_DIRNAME = '.failed';
 const OVERLAP_LINES = 20;
-const FETCH_TIMEOUT_MS = 180_000;
+const DEFAULT_FETCH_TIMEOUT_MS = 180_000;
 
 function errMsg(err) {
   return err instanceof Error ? err.message : String(err);
@@ -48,9 +48,9 @@ function errCauseSummary(err) {
   return `${name}${code}${message}`;
 }
 
-function fetchWithTimeout(url, init = {}) {
+function fetchWithTimeout(url, init = {}, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   return fetch(url, { ...init, signal: controller.signal })
     .finally(() => clearTimeout(timer));
 }
@@ -81,10 +81,10 @@ function payloadKB(fullPath) {
   }
 }
 
-async function fetchLastPosition(serverUrl, headers, sessionId) {
+async function fetchLastPosition(serverUrl, headers, sessionId, timeoutMs) {
   try {
     const url = `${serverUrl}/conversations/position?session_id=${encodeURIComponent(sessionId)}`;
-    const res = await fetchWithTimeout(url, { headers });
+    const res = await fetchWithTimeout(url, { headers }, timeoutMs);
     if (!res.ok) return 0;
     const body = await res.json();
     return typeof body?.last_line === 'number' ? body.last_line : 0;
@@ -139,7 +139,7 @@ function buildHeaders(apiKey, extraHeaders) {
   };
 }
 
-async function postSegment(serverUrl, headers, payload, segment) {
+async function postSegment(serverUrl, headers, payload, segment, timeoutMs) {
   return fetchWithTimeout(`${serverUrl}/conversations`, {
     method: 'POST',
     headers,
@@ -150,10 +150,10 @@ async function postSegment(serverUrl, headers, payload, segment) {
       segmentStartLine: segment.startLine,
       segmentEndLine: segment.endLine,
     }),
-  });
+  }, timeoutMs);
 }
 
-async function drainOne(filename, { serverUrl, apiKey, workerDir, extraHeaders, logger }) {
+async function drainOne(filename, { serverUrl, apiKey, workerDir, extraHeaders, fetchTimeoutMs, logger }) {
   const fullPath = join(queueDir(workerDir), filename);
   const sizeKB = payloadKB(fullPath);
   const url = sanitizeUrl(`${serverUrl}/conversations`);
@@ -165,13 +165,13 @@ async function drainOne(filename, { serverUrl, apiKey, workerDir, extraHeaders, 
   }
 
   const headers = buildHeaders(apiKey, extraHeaders);
-  const lastLine = await fetchLastPosition(serverUrl, headers, payload.sessionId);
+  const lastLine = await fetchLastPosition(serverUrl, headers, payload.sessionId, fetchTimeoutMs);
   const segment = extractSegment(payload.filteredTranscript, lastLine);
 
   const startedAt = performance.now();
   let res;
   try {
-    res = await postSegment(serverUrl, headers, payload, segment);
+    res = await postSegment(serverUrl, headers, payload, segment, fetchTimeoutMs);
   } catch (err) {
     const elapsedMs = Math.round(performance.now() - startedAt);
     const name = err && err.name ? err.name : 'Error';
@@ -207,7 +207,7 @@ async function drainOne(filename, { serverUrl, apiKey, workerDir, extraHeaders, 
   return { status: 'failed' };
 }
 
-export async function drainConversations({ serverUrl, apiKey, workerDir, extraHeaders = {}, logger = STDERR_FALLBACK_LOGGER }) {
+export async function drainConversations({ serverUrl, apiKey, workerDir, extraHeaders = {}, fetchTimeoutMs = DEFAULT_FETCH_TIMEOUT_MS, logger = STDERR_FALLBACK_LOGGER }) {
   if (!apiKey) return { sent: 0, failed: 0, retried: 0, skipped: 'no-api-key' };
 
   const files = listQueueFiles(workerDir);
@@ -218,7 +218,7 @@ export async function drainConversations({ serverUrl, apiKey, workerDir, extraHe
   let retried = 0;
 
   for (const filename of files) {
-    const result = await drainOne(filename, { serverUrl, apiKey, workerDir, extraHeaders, logger });
+    const result = await drainOne(filename, { serverUrl, apiKey, workerDir, extraHeaders, fetchTimeoutMs, logger });
     if (result.status === 'sent') sent++;
     else if (result.status === 'failed') failed++;
     else retried++;

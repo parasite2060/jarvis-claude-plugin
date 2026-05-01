@@ -155,6 +155,36 @@ describe('drainConversations > error log enrichment', () => {
     expect(elapsed).toBeGreaterThanOrEqual(0);
   });
 
+  it('should abort the POST when fetchTimeoutMs elapses', async () => {
+    // Arrange
+    const filename = setupQueue(workerDir);
+    // getLastPosition fails fast; postSegment hangs forever to force timeout.
+    mockFetch
+      .mockRejectedValueOnce(new Error('whatever'))
+      .mockImplementationOnce((_url, init) => new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => {
+          const err = new Error('This operation was aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      }));
+
+    // Act
+    const result = await drainConversations({
+      serverUrl: 'http://localhost:8000',
+      apiKey: 'k',
+      workerDir,
+      fetchTimeoutMs: 50,
+      logger,
+    });
+
+    // Assert
+    expect(result).toMatchObject({ retried: 1 });
+    expect(filename).toBeTruthy();
+    const line = logger.warn.mock.calls[0][0];
+    expect(line).toContain('err=AbortError');
+  });
+
   it('should sanitize basic-auth credentials out of url= field in network-error log', async () => {
     // Arrange
     const filename = setupQueue(workerDir);

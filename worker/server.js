@@ -76,6 +76,7 @@ const runDrain = singleFlight(async function runDrainBody() {
     apiKey: config.apiKey,
     workerDir: config.workerDir,
     extraHeaders: config.extraHeaders,
+    fetchTimeoutMs: config.fetchTimeoutMs,
     logger,
   });
   state.lastDrain = new Date().toISOString();

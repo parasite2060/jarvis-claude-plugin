@@ -45,5 +45,6 @@ export function parseArgs() {
     workerDir: pathArg('workerDir', 'workerDir', '~/.jarvis-cache/worker', cliArgs),
     workerPort: Number(env('workerPort') || cliArgs.workerPort) || 37777,
     extraHeaders: env('extraHeaders') || cliArgs.extraHeaders || '',
+    fetchTimeoutMs: Number(env('fetchTimeoutMs') || cliArgs.fetchTimeoutMs) || 180_000,
   };
 }

@@ -48,6 +48,7 @@ export function loadWorkerConfig() {
     workerDir,
     workerPort: envNumber('CLAUDE_PLUGIN_OPTION_WORKERPORT', 37777),
     extraHeaders: parseExtraHeaders(process.env.CLAUDE_PLUGIN_OPTION_EXTRAHEADERS || ''),
+    fetchTimeoutMs: envNumber('CLAUDE_PLUGIN_OPTION_FETCHTIMEOUTMS', 180_000),
     syncIntervalMs: 5 * 60 * 1000,
     drainIntervalMs: 30 * 1000,
     idleTimeoutMs: Math.max(MIN_IDLE_MS, envNumber('CLAUDE_PLUGIN_OPTION_IDLEMS', SEVEN_DAYS_MS)),
