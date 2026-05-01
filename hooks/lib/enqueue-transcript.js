@@ -43,8 +43,8 @@ function buildPayload({ sessionId, source, filteredTranscript }) {
   };
 }
 
-function writeQueueFile(payload, cacheDir) {
-  const dir = join(cacheDir, QUEUE_DIRNAME);
+function writeQueueFile(payload, workerDir) {
+  const dir = join(workerDir, QUEUE_DIRNAME);
   mkdirSync(dir, { recursive: true });
   const uniqueSuffix = `${Date.now()}-${hrtime.bigint().toString(36)}`;
   const finalPath = join(dir, `${payload.sessionId}-${uniqueSuffix}.json`);
@@ -80,6 +80,8 @@ export function enqueueTranscript({ source, input }) {
     source,
     filteredTranscript: filterSensitiveData(content),
   });
-  const path = writeQueueFile(payload, resolveHome(config.cacheDir));
+  // parse-args.js guarantees config.workerDir is a usable string (defaults +
+  // sentinel-undefined guard). Just resolve ~ and write.
+  const path = writeQueueFile(payload, resolveHome(config.workerDir));
   return { queuedAt: path };
 }

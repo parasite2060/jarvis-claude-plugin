@@ -27,6 +27,12 @@
       "default": "~/.jarvis-cache/ai-memory",
       "description": "Local file cache directory for vault files"
     },
+    "workerDir": {
+      "title": "Worker Workspace Directory",
+      "type": "string",
+      "default": "~/.jarvis-cache/worker",
+      "description": "Local workspace for worker-owned state: logs, conversation queue, PID file. Separate from cacheDir which holds the synced vault."
+    },
     "workerPort": {
       "title": "Worker Port",
       "type": "number",

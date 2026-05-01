@@ -51,7 +51,7 @@ describe('session-end hook > with valid transcript file (queue-file contract)', 
 
     // Act
     const { exitCode } = await runHook(HOOK_PATH, input, {
-      CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
+      CLAUDE_PLUGIN_OPTION_WORKERDIR: cacheDir,
     });
 
     // Assert
@@ -72,7 +72,7 @@ describe('session-end hook > with valid transcript file (queue-file contract)', 
 
     // Act
     const { exitCode } = await runHook(HOOK_PATH, input, {
-      CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
+      CLAUDE_PLUGIN_OPTION_WORKERDIR: cacheDir,
     });
 
     // Assert
@@ -90,7 +90,7 @@ describe('session-end hook > with valid transcript file (queue-file contract)', 
 
     // Act
     await runHook(HOOK_PATH, input, {
-      CLAUDE_PLUGIN_OPTION_CACHEDIR: cacheDir,
+      CLAUDE_PLUGIN_OPTION_WORKERDIR: cacheDir,
     });
 
     // Assert
@@ -142,6 +142,7 @@ describe('session-end hook > error handling', () => {
     // Act
     const { exitCode } = await runHook(HOOK_PATH, input, {
       CLAUDE_PLUGIN_OPTION_CACHEDIR: tmpDir,
+      CLAUDE_PLUGIN_OPTION_WORKERDIR: tmpDir,
       CLAUDE_PLUGIN_OPTION_SERVERURL: 'http://localhost:19999',
     });
 

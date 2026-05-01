@@ -1,5 +1,6 @@
-import { readdirSync, readFileSync, unlinkSync, mkdirSync, renameSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, unlinkSync, mkdirSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { STDERR_FALLBACK_LOGGER } from './lib/fallback-logger.js';
 
 const QUEUE_DIRNAME = 'pending-conversations';
@@ -11,6 +12,42 @@ function errMsg(err) {
   return err instanceof Error ? err.message : String(err);
 }
 
+// Strip basic-auth credentials (and any query string) from URLs before they
+// land in log files. If the input isn't parseable as a URL, return as-is.
+function sanitizeUrl(value) {
+  if (typeof value !== 'string') return value;
+  try {
+    const u = new URL(value);
+    if (u.username || u.password) {
+      u.username = '';
+      u.password = '';
+    }
+    u.search = '';
+    return u.toString().replace(/\/$/, '');
+  } catch {
+    return value;
+  }
+}
+
+// Best-effort scrub of any URL substrings inside a free-form error message.
+function sanitizeMessage(value) {
+  if (typeof value !== 'string') return value;
+  return value.replace(/https?:\/\/\S+/g, (match) => sanitizeUrl(match));
+}
+
+// Walks one level of err.cause so log lines surface the actual syscall
+// (ECONNREFUSED, EAI_AGAIN, ...) that the high-level fetch() error wraps.
+function errCauseSummary(err) {
+  const cause = err && err.cause;
+  if (!cause) return 'none';
+  const name = cause.name || 'Error';
+  const code = cause.code ? ` code=${cause.code}` : '';
+  const message = cause.message
+    ? ` message=${JSON.stringify(sanitizeMessage(String(cause.message)))}`
+    : '';
+  return `${name}${code}${message}`;
+}
+
 function fetchWithTimeout(url, init = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -18,21 +55,29 @@ function fetchWithTimeout(url, init = {}) {
     .finally(() => clearTimeout(timer));
 }
 
-function queueDir(cacheDir) {
-  return join(cacheDir, QUEUE_DIRNAME);
+function queueDir(workerDir) {
+  return join(workerDir, QUEUE_DIRNAME);
 }
 
-function failedDir(cacheDir) {
-  return join(cacheDir, QUEUE_DIRNAME, FAILED_DIRNAME);
+function failedDir(workerDir) {
+  return join(workerDir, QUEUE_DIRNAME, FAILED_DIRNAME);
 }
 
-function listQueueFiles(cacheDir) {
+function listQueueFiles(workerDir) {
   try {
-    return readdirSync(queueDir(cacheDir))
+    return readdirSync(queueDir(workerDir))
       .filter((name) => name.endsWith('.json'))
       .sort();
   } catch {
     return [];
+  }
+}
+
+function payloadKB(fullPath) {
+  try {
+    return Math.round(statSync(fullPath).size / 1024);
+  } catch {
+    return 0;
   }
 }
 
@@ -64,10 +109,10 @@ function isRetryable(status) {
   return status >= 500;
 }
 
-function moveToFailed(cacheDir, filename, reason, logger) {
+function moveToFailed(workerDir, filename, reason, logger) {
   try {
-    mkdirSync(failedDir(cacheDir), { recursive: true });
-    renameSync(join(queueDir(cacheDir), filename), join(failedDir(cacheDir), filename));
+    mkdirSync(failedDir(workerDir), { recursive: true });
+    renameSync(join(queueDir(workerDir), filename), join(failedDir(workerDir), filename));
     logger.warn(`jarvis.drain.failed-moved: ${filename} reason=${reason}`);
   } catch (err) {
     logger.error(`jarvis.drain.failed-move-error: ${filename} ${errMsg(err)}`);
@@ -108,12 +153,14 @@ async function postSegment(serverUrl, headers, payload, segment) {
   });
 }
 
-async function drainOne(filename, { serverUrl, apiKey, cacheDir, extraHeaders, logger }) {
-  const fullPath = join(queueDir(cacheDir), filename);
+async function drainOne(filename, { serverUrl, apiKey, workerDir, extraHeaders, logger }) {
+  const fullPath = join(queueDir(workerDir), filename);
+  const sizeKB = payloadKB(fullPath);
+  const url = sanitizeUrl(`${serverUrl}/conversations`);
 
   const { payload, error } = loadPayload(fullPath);
   if (error) {
-    moveToFailed(cacheDir, filename, error, logger);
+    moveToFailed(workerDir, filename, error, logger);
     return { status: 'failed' };
   }
 
@@ -121,13 +168,22 @@ async function drainOne(filename, { serverUrl, apiKey, cacheDir, extraHeaders, l
   const lastLine = await fetchLastPosition(serverUrl, headers, payload.sessionId);
   const segment = extractSegment(payload.filteredTranscript, lastLine);
 
+  const startedAt = performance.now();
   let res;
   try {
     res = await postSegment(serverUrl, headers, payload, segment);
   } catch (err) {
-    logger.warn(`jarvis.drain.network-error: ${filename} ${errMsg(err)}`);
+    const elapsedMs = Math.round(performance.now() - startedAt);
+    const name = err && err.name ? err.name : 'Error';
+    logger.warn(
+      `jarvis.drain.network-error: ${filename} url=${url} payloadKB=${sizeKB} ` +
+      `elapsedMs=${elapsedMs} err=${name} cause=${errCauseSummary(err)} ` +
+      `message=${JSON.stringify(sanitizeMessage(errMsg(err)))}`,
+    );
     return { status: 'retry' };
   }
+
+  const elapsedMs = Math.round(performance.now() - startedAt);
 
   if (res.ok) {
     try { unlinkSync(fullPath); } catch { /* file may already be gone */ }
@@ -135,18 +191,26 @@ async function drainOne(filename, { serverUrl, apiKey, cacheDir, extraHeaders, l
   }
 
   if (isRetryable(res.status)) {
-    logger.warn(`jarvis.drain.retryable: ${filename} status=${res.status}`);
+    logger.warn(
+      `jarvis.drain.retryable: ${filename} url=${url} status=${res.status} ` +
+      `payloadKB=${sizeKB} elapsedMs=${elapsedMs}`,
+    );
     return { status: 'retry' };
   }
 
-  moveToFailed(cacheDir, filename, `http:${res.status}`, logger);
+  moveToFailed(
+    workerDir,
+    filename,
+    `http:${res.status} url=${url} payloadKB=${sizeKB} elapsedMs=${elapsedMs}`,
+    logger,
+  );
   return { status: 'failed' };
 }
 
-export async function drainConversations({ serverUrl, apiKey, cacheDir, extraHeaders = {}, logger = STDERR_FALLBACK_LOGGER }) {
+export async function drainConversations({ serverUrl, apiKey, workerDir, extraHeaders = {}, logger = STDERR_FALLBACK_LOGGER }) {
   if (!apiKey) return { sent: 0, failed: 0, retried: 0, skipped: 'no-api-key' };
 
-  const files = listQueueFiles(cacheDir);
+  const files = listQueueFiles(workerDir);
   if (files.length === 0) return { sent: 0, failed: 0, retried: 0 };
 
   let sent = 0;
@@ -154,7 +218,7 @@ export async function drainConversations({ serverUrl, apiKey, cacheDir, extraHea
   let retried = 0;
 
   for (const filename of files) {
-    const result = await drainOne(filename, { serverUrl, apiKey, cacheDir, extraHeaders, logger });
+    const result = await drainOne(filename, { serverUrl, apiKey, workerDir, extraHeaders, logger });
     if (result.status === 'sent') sent++;
     else if (result.status === 'failed') failed++;
     else retried++;

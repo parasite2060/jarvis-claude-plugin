@@ -4,6 +4,7 @@ const ENV_KEYS = [
   'CLAUDE_PLUGIN_OPTION_SERVERURL',
   'CLAUDE_PLUGIN_OPTION_APIKEY',
   'CLAUDE_PLUGIN_OPTION_CACHEDIR',
+  'CLAUDE_PLUGIN_OPTION_WORKERDIR',
   'CLAUDE_PLUGIN_OPTION_WORKERPORT',
   'CLAUDE_PLUGIN_OPTION_EXTRAHEADERS',
   'CLAUDE_PLUGIN_OPTION_IDLEMS',
@@ -40,6 +41,8 @@ describe('loadWorkerConfig', () => {
     expect(config.apiKey).toBeUndefined();
     expect(config.workerPort).toBe(37777);
     expect(config.extraHeaders).toEqual({});
+    expect(config.cacheDir).toMatch(/\.jarvis-cache\/ai-memory$/);
+    expect(config.workerDir).toMatch(/\.jarvis-cache\/worker$/);
     expect(config.syncIntervalMs).toBe(5 * 60 * 1000);
     expect(config.drainIntervalMs).toBe(30 * 1000);
     expect(config.idleTimeoutMs).toBe(7 * 24 * 60 * 60 * 1000);
@@ -67,6 +70,18 @@ describe('loadWorkerConfig', () => {
     expect(config.workerPort).toBe(12345);
     expect(config.idleTimeoutMs).toBe(500);
     expect(config.idleCheckIntervalMs).toBe(100);
+  });
+
+  it('should override workerDir when CLAUDE_PLUGIN_OPTION_WORKERDIR is set', async () => {
+    // Arrange
+    process.env.CLAUDE_PLUGIN_OPTION_WORKERDIR = '/tmp/custom-worker';
+    const { loadWorkerConfig } = await import('../../../worker/lib/config.js');
+
+    // Act
+    const config = loadWorkerConfig();
+
+    // Assert
+    expect(config.workerDir).toBe('/tmp/custom-worker');
   });
 
   it('should parse extraHeaders JSON when CLAUDE_PLUGIN_OPTION_EXTRAHEADERS is set', async () => {
