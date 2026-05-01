@@ -185,6 +185,34 @@ describe('drainConversations > error log enrichment', () => {
     expect(line).toContain('err=AbortError');
   });
 
+  it('should log jarvis.drain.sent with sessionId, segment range, elapsedMs, and payloadKB when post returns 2xx', async () => {
+    // Arrange
+    const filename = setupQueue(workerDir);
+    mockFetch
+      .mockRejectedValueOnce(new Error('whatever')) // fetchLastPosition
+      .mockResolvedValueOnce({ ok: true, status: 200 }); // postSegment
+
+    // Act
+    const result = await drainConversations({
+      serverUrl: 'http://localhost:8000',
+      apiKey: 'k',
+      workerDir,
+      logger,
+    });
+
+    // Assert
+    expect(result).toMatchObject({ sent: 1, failed: 0, retried: 0 });
+    expect(existsSync(join(workerDir, 'pending-conversations', filename))).toBe(false);
+    const sentLine = logger.info.mock.calls.find((c) => c[0].includes('jarvis.drain.sent:'))?.[0];
+    expect(sentLine).toBeDefined();
+    expect(sentLine).toContain(filename);
+    expect(sentLine).toContain(`sessionId=${MOCK_PAYLOAD.sessionId}`);
+    expect(sentLine).toMatch(/startLine=\d+/);
+    expect(sentLine).toMatch(/endLine=\d+/);
+    expect(sentLine).toMatch(/elapsedMs=\d+/);
+    expect(sentLine).toMatch(/payloadKB=\d+/);
+  });
+
   it('should sanitize basic-auth credentials out of url= field in network-error log', async () => {
     // Arrange
     const filename = setupQueue(workerDir);

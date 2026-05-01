@@ -168,6 +168,10 @@ npx --registry=https://npm.pkg.github.com @parasite2060/jarvis-mcp-server@next  
 - All hooks exit 0 on failure — never blocks Claude Code
 - MCP server communicates via stdio (no network exposure)
 
+### Network surface
+
+The local file sync worker's HTTP server binds to `127.0.0.1` only by design — it is not reachable from any other host on the LAN. This is hard-coded (no opt-out config knob): a per-user worker exposing `/health`, `/sync`, and `/drain` to the LAN would be a side-channel into the operator's session state. A future feature requiring LAN access would need to introduce authentication AND an opt-in bind config; both must land together, never separately.
+
 ## Related Repositories
 
 | Repository | Description |
