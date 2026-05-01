@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { syncFiles } from './file-sync.js';
-import { drainConversations } from './conversation-drain.js';
+import { drainConversations, getAuthState, clearAuthBlock } from './conversation-drain.js';
 import { createLogger } from './lib/logger.js';
 import { loadWorkerConfig } from './lib/config.js';
 import { migrateLegacyWorkspace } from './lib/migrate-workspace.js';
@@ -110,6 +110,7 @@ const runDrain = singleFlight(async function runDrainBody() {
 });
 
 function buildHealthPayload() {
+  const { authBlocked, authBlockedReason } = getAuthState();
   return {
     status: 'ok',
     version: config.pluginVersion,
@@ -123,6 +124,8 @@ function buildHealthPayload() {
     idleShutdownAt: new Date(state.lastActivityAtWall + config.idleTimeoutMs).toISOString(),
     cacheDir: config.cacheDir,
     workerDir: config.workerDir,
+    authBlocked,
+    ...(authBlocked ? { authBlockedReason } : {}),
   };
 }
 
@@ -132,16 +135,22 @@ function sendJson(res, status, body) {
 }
 
 const ROUTES = {
-  'GET /health': async () => buildHealthPayload(),
+  'GET /health': async (url) => {
+    if (url.searchParams.get('clearAuthBlock') === '1') {
+      clearAuthBlock();
+    }
+    return buildHealthPayload();
+  },
   'POST /sync':  async () => runSync(),
   'POST /drain': async () => (await runDrain()) ?? { status: 'in-progress' },
 };
 
 async function dispatchRequest(req, res) {
   res.setHeader('Content-Type', 'application/json');
-  const handler = ROUTES[`${req.method} ${req.url}`];
+  const url = new URL(req.url, 'http://127.0.0.1');
+  const handler = ROUTES[`${req.method} ${url.pathname}`];
   if (!handler) return sendJson(res, 404, { error: 'Not found' });
-  return sendJson(res, 200, await handler());
+  return sendJson(res, 200, await handler(url));
 }
 
 const server = http.createServer(dispatchRequest);
