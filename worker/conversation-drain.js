@@ -5,7 +5,7 @@ import { STDERR_FALLBACK_LOGGER } from './lib/fallback-logger.js';
 const QUEUE_DIRNAME = 'pending-conversations';
 const FAILED_DIRNAME = '.failed';
 const OVERLAP_LINES = 20;
-const FETCH_TIMEOUT_MS = 10_000;
+const FETCH_TIMEOUT_MS = 180_000;
 
 function errMsg(err) {
   return err instanceof Error ? err.message : String(err);
