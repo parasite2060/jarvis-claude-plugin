@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.3](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.7.2...jarvis-plugin-v0.7.3) (2026-05-01)
+
+
+### Bug Fixes
+
+* **worker:** raise drain fetch timeout to 180s and lock package/plugin versions ([64ce908](https://github.com/parasite2060/jarvis-claude-plugin/commit/64ce9081f781e141ecd40aefe3fd88375cdba4dd))
+
 ## [0.7.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-plugin-v0.6.0...jarvis-plugin-v0.7.0) (2026-05-01)
 
 
