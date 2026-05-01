@@ -186,6 +186,11 @@ async function drainOne(filename, { serverUrl, apiKey, workerDir, extraHeaders, 
   const elapsedMs = Math.round(performance.now() - startedAt);
 
   if (res.ok) {
+    logger.info(
+      `jarvis.drain.sent: ${filename} sessionId=${payload.sessionId} ` +
+      `startLine=${segment.startLine} endLine=${segment.endLine} ` +
+      `elapsedMs=${elapsedMs} payloadKB=${sizeKB}`,
+    );
     try { unlinkSync(fullPath); } catch { /* file may already be gone */ }
     return { status: 'sent' };
   }

@@ -178,9 +178,9 @@ server.on('error', (err) => {
   logger.error(`jarvis.worker.server-error: ${err.message}`);
 });
 
-server.listen(config.workerPort, () => {
+server.listen(config.workerPort, '127.0.0.1', () => {
   writePid();
-  logger.info(`jarvis.worker.started: version=${config.pluginVersion} port=${config.workerPort} cacheDir=${config.cacheDir} workerDir=${config.workerDir} idleMs=${config.idleTimeoutMs}`);
+  logger.info(`jarvis.worker.started: version=${config.pluginVersion} host=127.0.0.1 port=${config.workerPort} cacheDir=${config.cacheDir} workerDir=${config.workerDir} idleMs=${config.idleTimeoutMs}`);
   runGuarded('sync', runSync);
   runGuarded('drain', runDrain);
   timers.sync = scheduleEvery(config.syncIntervalMs, 'sync', runSync);

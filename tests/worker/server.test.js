@@ -213,7 +213,7 @@ describe('worker/server', () => {
   it('should exit 0 when EADDRINUSE occurs on startup', async () => {
     // Arrange
     const blocker = http.createServer((req, res) => { res.end('ok'); });
-    await new Promise(resolve => blocker.listen(workerPort, resolve));
+    await new Promise(resolve => blocker.listen(workerPort, '127.0.0.1', resolve));
 
     try {
       // Act
@@ -238,6 +238,21 @@ describe('worker/server', () => {
     // Assert
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Not found');
+  });
+
+  it('should be reachable on 127.0.0.1 and emit host=127.0.0.1 in the started log when worker boots', async () => {
+    // Arrange
+    await startWorker();
+
+    // Act
+    const res = await request(workerPort, 'GET', '/health');
+    const logFile = join(cacheDir, 'logs', 'worker.log');
+    const contents = readFileSync(logFile, 'utf8');
+
+    // Assert
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(contents).toContain('host=127.0.0.1');
   });
 
   it('should exit 1 when CLAUDE_PLUGIN_OPTION_APIKEY is missing', async () => {
