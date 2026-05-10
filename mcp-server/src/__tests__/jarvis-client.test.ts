@@ -31,6 +31,17 @@ describe('jarvisPost', () => {
     expect(result).toEqual({ ok: false, error: 'Server error: MEMU_ERROR - search failed' });
   });
 
+  it('returns structured error with flat TS envelope', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ code: -888888, message: 'Unauthorized', data: null }),
+    });
+
+    const result = await jarvisPost('/memory/search', { query: 'test' });
+    expect(result).toEqual({ ok: false, error: 'Server error: -888888 - Unauthorized' });
+  });
+
   it('returns error with HTTP status when body has no error details', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -101,6 +112,17 @@ describe('jarvisGet', () => {
 
     const result = await jarvisGet('/health');
     expect(result).toEqual({ ok: false, error: 'Server error: UNAUTHORIZED - bad key' });
+  });
+
+  it('returns structured error with flat TS envelope', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ code: -888888, message: 'Unauthorized', data: null }),
+    });
+
+    const result = await jarvisGet('/memory/context');
+    expect(result).toEqual({ ok: false, error: 'Server error: -888888 - Unauthorized' });
   });
 
   it('returns unreachable error on network failure', async () => {

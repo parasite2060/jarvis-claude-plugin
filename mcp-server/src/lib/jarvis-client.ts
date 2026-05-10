@@ -3,7 +3,11 @@ export type JarvisResult<T> =
   | { ok: false; error: string };
 
 interface JarvisErrorBody {
+  // Python nested shape: { error: { code, message }, status: 'error' }
   error?: { code?: string; message?: string };
+  // TS flat shape: { code: number, message: string, data: null }
+  code?: number;
+  message?: string;
 }
 
 // Config comes from env vars set by Claude Code via .mcp.json ${user_config.*} templates
@@ -34,6 +38,11 @@ function buildHeaders(): Record<string, string> {
 async function extractErrorMessage(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as JarvisErrorBody;
+    // TS flat shape takes priority — this is what jarvis-server-ts returns
+    if (body.code != null && body.message) {
+      return `Server error: ${body.code} - ${body.message}`;
+    }
+    // Python nested shape — backward-compat pre-cutover
     if (body.error?.code && body.error?.message) {
       return `Server error: ${body.error.code} - ${body.error.message}`;
     }
