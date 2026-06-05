@@ -35,11 +35,20 @@ function pathArg(envKey, cliKey, fallback, cliArgs) {
   return raw;
 }
 
+// A scheme-less serverUrl (e.g. "jarvis-mem.example.com") makes `fetch()` throw
+// "Failed to parse URL". Default to https:// when no scheme is present, and trim
+// any trailing slash so `${serverUrl}${path}` doesn't produce a double slash.
+export function normalizeServerUrl(raw) {
+  const url = String(raw || '').trim();
+  const withScheme = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  return withScheme.replace(/\/+$/, '');
+}
+
 export function parseArgs() {
   const cliArgs = parseCliArgs();
 
   return {
-    serverUrl: env('serverUrl') || cliArgs.serverUrl || 'http://localhost:8000',
+    serverUrl: normalizeServerUrl(env('serverUrl') || cliArgs.serverUrl || 'http://localhost:8000'),
     apiKey: env('apiKey') || cliArgs.apiKey || '',
     cacheDir: pathArg('cacheDir', 'cacheDir', '~/.jarvis-cache/ai-memory', cliArgs),
     workerDir: pathArg('workerDir', 'workerDir', '~/.jarvis-cache/worker', cliArgs),

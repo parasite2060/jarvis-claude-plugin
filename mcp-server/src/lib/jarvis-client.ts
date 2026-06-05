@@ -10,8 +10,15 @@ interface JarvisErrorBody {
   message?: string;
 }
 
-// Config comes from env vars set by Claude Code via .mcp.json ${user_config.*} templates
-const JARVIS_SERVER_URL = process.env.JARVIS_SERVER_URL || 'http://localhost:8000';
+// Config comes from env vars set by Claude Code via .mcp.json ${user_config.*} templates.
+// A scheme-less serverUrl makes fetch() throw "Failed to parse URL" — default to
+// https:// when no scheme is present, and trim any trailing slash.
+function normalizeServerUrl(raw: string): string {
+  const url = (raw || '').trim();
+  const withScheme = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  return withScheme.replace(/\/+$/, '');
+}
+const JARVIS_SERVER_URL = normalizeServerUrl(process.env.JARVIS_SERVER_URL || 'http://localhost:8000');
 const JARVIS_API_KEY = process.env.JARVIS_API_KEY || '';
 const JARVIS_EXTRA_HEADERS_RAW = process.env.JARVIS_EXTRA_HEADERS || '';
 
