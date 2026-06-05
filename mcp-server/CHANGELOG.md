@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-mcp-server-v0.5.0...jarvis-mcp-server-v0.6.0) (2026-06-05)
+
+
+### Features
+
+* remove memory_search/memory_add MCP tools (MemU removed) ([2ba81d1](https://github.com/parasite2060/jarvis-claude-plugin/commit/2ba81d1f7d6c44159cce1a6f17f24deeb30c50f9))
+
+
+### Bug Fixes
+
+* **mcp:** handle TS flat error envelope + Python nested shape (Story 13.16.6) ([1ad54aa](https://github.com/parasite2060/jarvis-claude-plugin/commit/1ad54aa556840b120acfeafeeaba9b53e5692bac))
+* normalize scheme-less serverUrl to https:// (hooks, MCP, worker) ([8ed8899](https://github.com/parasite2060/jarvis-claude-plugin/commit/8ed8899e95cb1ec678f9948127ae847a2e6b6e1d))
+
 ## [0.5.0](https://github.com/parasite2060/jarvis-claude-plugin/compare/jarvis-mcp-server-v0.4.0...jarvis-mcp-server-v0.5.0) (2026-04-24)
 
 
