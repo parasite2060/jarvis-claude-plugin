@@ -9,6 +9,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveHome, isUnsetPath } from '../../lib/paths.js';
 import { parseExtraHeaders } from '../../hooks/lib/parse-extra-headers.js';
+import { normalizeServerUrl } from '../../hooks/lib/parse-args.js';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const MIN_IDLE_MS = 50;
@@ -42,7 +43,7 @@ export function loadWorkerConfig() {
   return Object.freeze({
     pluginVersion: readPluginVersion(),
     pluginRoot: PLUGIN_ROOT,
-    serverUrl: process.env.CLAUDE_PLUGIN_OPTION_SERVERURL || 'http://localhost:8000',
+    serverUrl: normalizeServerUrl(process.env.CLAUDE_PLUGIN_OPTION_SERVERURL || 'http://localhost:8000'),
     apiKey: process.env.CLAUDE_PLUGIN_OPTION_APIKEY,
     cacheDir,
     workerDir,

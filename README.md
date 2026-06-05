@@ -11,10 +11,6 @@ Claude Code Session
     │
     ├── SessionStart hook ──► GET /memory/context ──► Injects SOUL + IDENTITY + MEMORY
     │
-    ├── MCP Tools (during session)
-    │   ├── memory_search ──► POST /memory/search ──► Semantic results from MemU
-    │   └── memory_add ──► POST /memory/add ──► Store new memory
-    │
     ├── PreCompact hook ──► POST /conversations ──► Backup transcript before compaction
     │
     └── Stop hook ──► POST /conversations ──► Capture full transcript for dreaming
@@ -63,8 +59,7 @@ All hooks exit 0 on failure (graceful degradation — Claude works fine without 
 
 | Tool | Description |
 |------|-------------|
-| `memory_search` | Semantic search across all past memories. Calls Jarvis Server, which proxies to MemU (pgvector). Returns ranked results with source context. |
-| `memory_add` | Store a new memory during a session. Claude proactively calls this when it observes decisions, preferences, corrections, or important facts. |
+| `dream` | Triggers a manual deep dream (memory consolidation) on the Jarvis Server. Accepts an optional `source_date` (YYYY-MM-DD) to backfill a past day. |
 
 The MCP server is distributed as [`@parasite2060/jarvis-mcp-server`](https://github.com/parasite2060/jarvis-claude-plugin/packages) on GitHub Packages. Versioned via [release-please](https://github.com/googleapis/release-please) with automated publishing on release.
 
@@ -73,7 +68,6 @@ The MCP server is distributed as [`@parasite2060/jarvis-mcp-server`](https://git
 | Command | Description |
 |---------|-------------|
 | `/dream` | Triggers a manual deep dream cycle — consolidates all recent sessions into organized MEMORY.md with strong patterns, resolved contradictions, and pruned stale entries. |
-| `/recall <query>` | Interactive memory search — queries past memories and presents results grouped by relevance (high/medium/low). |
 
 ### Local File Sync Worker
 
@@ -137,8 +131,7 @@ mcp-server/                  # Published as @parasite2060/jarvis-mcp-server
 ├── src/
 │   ├── index.ts             # MCP server entry (stdio transport)
 │   ├── tools/
-│   │   ├── memory-search.ts # memory_search tool handler
-│   │   └── memory-add.ts    # memory_add tool handler
+│   │   └── dream.ts         # dream tool handler
 │   ├── lib/
 │   │   └── jarvis-client.ts # Typed HTTP client for Jarvis Server
 │   └── schemas.ts           # Zod schemas for tool inputs
@@ -197,7 +190,6 @@ The local file sync worker's HTTP server binds to `127.0.0.1` only by design —
 | Repository | Description |
 |-----------|-------------|
 | [jarvis-server](https://github.com/parasite2060/jarvis-server) | Backend server (FastAPI, dreaming engine, git ops) |
-| [memU-server](https://github.com/parasite2060/memU-server) | Semantic memory search engine |
 | [memU-ui](https://github.com/parasite2060/memU-ui) | MemU web interface |
 | [memU](https://github.com/parasite2060/memU) | Memory framework library (memu-py) |
 
